@@ -1,0 +1,8 @@
+target/
+dist/
+.git/
+.env
+.envrc
+*.log
+.restored_from_backup
+.vscode/
