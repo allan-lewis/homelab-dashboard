@@ -11,6 +11,7 @@ use openidconnect::{
     RedirectUrl, Scope, TokenResponse,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tower_http::services::ServeDir;
 use tower_sessions::{MemoryStore, Session, SessionManagerLayer};
 
@@ -22,6 +23,7 @@ struct AuthConfig {
     redirect_uri: String,
     logout_uri: String,
     post_logout_redirect_uri: String,
+    prometheus_url: String,
 }
 
 impl AuthConfig {
@@ -39,6 +41,8 @@ impl AuthConfig {
                 .expect("missing HOMELAB_DASHBOARD_AUTHENTIK_LOGOUT_URI"),
             post_logout_redirect_uri: std::env::var("HOMELAB_DASHBOARD_POST_LOGOUT_REDIRECT_URI")
                 .expect("missing HOMELAB_DASHBOARD_POST_LOGOUT_REDIRECT_URI"),
+            prometheus_url: std::env::var("HOMELAB_DASHBOARD_PROMETHEUS_URL")
+                .expect("missing HOMELAB_DASHBOARD_PROMETHEUS_URL"),
         }
     }
 }
@@ -46,6 +50,31 @@ impl AuthConfig {
 #[derive(Clone)]
 struct AppState {
     auth_config: AuthConfig,
+}
+
+#[derive(Debug, Deserialize)]
+struct PrometheusQueryResponse {
+    data: PrometheusData,
+}
+
+#[derive(Debug, Deserialize)]
+struct PrometheusData {
+    result: Vec<PrometheusResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PrometheusResult {
+    metric: HashMap<String, String>,
+    value: (f64, String),
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct HostUpStatus {
+    instance: String,
+    job: String,
+    target: String,
+    timestamp: f64,
+    up: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -233,6 +262,69 @@ async fn me(session: Session) -> impl IntoResponse {
     Json(user)
 }
 
+async fn prometheus_up(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<HostUpStatus>>, (StatusCode, String)> {
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(format!(
+            "{}/api/v1/query",
+            state.auth_config.prometheus_url
+        ))
+        .query(&[("query", "up")])
+        .send()
+        .await
+        .map_err(internal_error)?;
+
+    let prometheus_response = response
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(internal_error)?;
+
+    let mut statuses = prometheus_response
+        .data
+        .result
+        .into_iter()
+        .map(|result| {
+            let instance = result
+                .metric
+                .get("instance")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let job = result
+                .metric
+                .get("job")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let target = result
+                .metric
+                .get("target")
+                .cloned()
+                .unwrap_or_else(|| "".to_string());
+
+            HostUpStatus {
+                instance,
+                job,
+                target,
+                timestamp: result.value.0,
+                up: result.value.1 == "1",
+            }
+        })
+        .collect::<Vec<_>>();
+
+    statuses.sort_by(|a, b| {
+        a.instance
+            .cmp(&b.instance)
+            .then_with(|| a.job.cmp(&b.job))
+            .then_with(|| a.target.cmp(&b.target))
+    });
+
+    Ok(Json(statuses))
+}
+
 #[tokio::main]
 async fn main() {
     let auth_config = AuthConfig::from_env();
@@ -247,6 +339,7 @@ async fn main() {
     );
     println!("  client_id: {}", redacted(&auth_config.client_id));
     println!("  client_secret: {}", redacted(&auth_config.client_secret));
+    println!("  prometheus_url: {}", auth_config.prometheus_url);
 
     let state = AppState { auth_config };
 
@@ -258,6 +351,7 @@ async fn main() {
         .route("/auth/callback/authentik", get(auth_callback))
         .route("/auth/logout", get(logout))
         .route("/api/me", get(me))
+        .route("/api/prometheus/up", get(prometheus_up))
         .fallback_service(ServeDir::new("dist"))
         .with_state(state)
         .layer(session_layer);

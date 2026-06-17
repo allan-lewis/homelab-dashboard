@@ -4,6 +4,15 @@ use serde::Deserialize;
 use wasm_bindgen_futures::spawn_local;
 
 #[derive(Clone, Debug, Deserialize)]
+struct HostUpStatus {
+    instance: String,
+    job: String,
+    target: String,
+    // timestamp: f64,
+    up: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 struct User {
     name: String,
     email: String,
@@ -158,10 +167,64 @@ fn OverviewPage(name: String) -> impl IntoView {
 
 #[component]
 fn HostsPage() -> impl IntoView {
+    let (statuses, set_statuses) = signal(Vec::<HostUpStatus>::new());
+    let (loaded, set_loaded) = signal(false);
+
+    spawn_local(async move {
+        let loaded_statuses = match Request::get("/api/prometheus/up").send().await {
+            Ok(response) => response.json::<Vec<HostUpStatus>>().await.unwrap_or_default(),
+            Err(_) => Vec::new(),
+        };
+
+        set_statuses.set(loaded_statuses);
+        set_loaded.set(true);
+    });
+
     view! {
         <section class="page-content">
             <h2>"Hosts"</h2>
-            <p>"This page will list each host with status, IP, role, OS, and last-seen timestamp."</p>
+
+            {move || {
+                if !loaded.get() {
+                    view! {
+                        <p>"Loading host status..."</p>
+                    }
+                    .into_any()
+                } else {
+                    view! {
+                        <table class="status-table">
+                            <thead>
+                                <tr>
+                                    <th>"Instance"</th>
+                                    <th>"Job"</th>
+                                    <th>"Target"</th>
+                                    <th>"Status"</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {statuses
+                                    .get()
+                                    .into_iter()
+                                    .map(|status| {
+                                        view! {
+                                            <tr>
+                                                <td>{status.instance}</td>
+                                                <td>{status.job}</td>
+                                                <td>{status.target}</td>
+                                                <td>
+                                                    {if status.up { "Up" } else { "Down" }}
+                                                </td>
+                                            </tr>
+                                        }
+                                    })
+                                    .collect_view()}
+                            </tbody>
+                        </table>
+                    }
+                    .into_any()
+                }
+            }}
         </section>
     }
 }

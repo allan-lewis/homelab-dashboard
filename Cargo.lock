@@ -2298,6 +2298,7 @@ dependencies = [
  "openidconnect",
  "reqwest",
  "serde",
+ "serde_json",
  "tokio",
  "tower-http",
  "tower-sessions",
