@@ -5,20 +5,29 @@ use leptos::wasm_bindgen::JsValue;
 use serde::Deserialize;
 use wasm_bindgen_futures::spawn_local;
 
+// #[derive(Clone, Debug, Deserialize)]
+// struct HostUpStatus {
+//     instance: String,
+//     job: String,
+//     target: String,
+//     // timestamp: f64,
+//     up: bool,
+// }
+
 #[derive(Clone, Debug, Deserialize)]
-struct HostUpStatus {
-    instance: String,
-    job: String,
-    target: String,
-    // timestamp: f64,
-    up: bool,
+#[serde(rename_all = "lowercase")]
+enum HostState {
+    Up,
+    Down,
+    Unknown,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 struct HostStatus {
     hostname: String,
+    persona: String,
     ip_address: String,
-    status: u8,
+    status: HostState,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -32,6 +41,13 @@ enum AuthState {
     Loading,
     Anonymous,
     Authenticated(User),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ThemeMode {
+    System,
+    Light,
+    Dark,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,10 +194,46 @@ fn MenuItem(
 }
 
 #[component]
+fn ThemeSelector(
+    theme_mode: ReadSignal<ThemeMode>,
+    set_theme_mode: WriteSignal<ThemeMode>,
+) -> impl IntoView {
+    view! {
+        <div class="theme-selector">
+            <button
+                class=move || if theme_mode.get() == ThemeMode::System { "theme-button active" } else { "theme-button" }
+                on:click=move |_| set_theme_mode.set(ThemeMode::System)
+                title="Follow system theme"
+            >
+                "AUTO"
+            </button>
+
+            <button
+                class=move || if theme_mode.get() == ThemeMode::Light { "theme-button active" } else { "theme-button" }
+                on:click=move |_| set_theme_mode.set(ThemeMode::Light)
+                title="Use light theme"
+            >
+                "LIGHT"
+            </button>
+
+            <button
+                class=move || if theme_mode.get() == ThemeMode::Dark { "theme-button active" } else { "theme-button" }
+                on:click=move |_| set_theme_mode.set(ThemeMode::Dark)
+                title="Use dark theme"
+            >
+                "DARK"
+            </button>
+        </div>
+    }
+}
+
+#[component]
 fn SideMenu(
     menu_open: ReadSignal<bool>,
     current_page: ReadSignal<Page>,
     set_current_page: WriteSignal<Page>,
+    theme_mode: ReadSignal<ThemeMode>,
+    set_theme_mode: WriteSignal<ThemeMode>,
 ) -> impl IntoView {
     view! {
         <aside class=move || {
@@ -197,6 +249,11 @@ fn SideMenu(
                 <MenuItem label="NixOS Generations" target=Page::Generations current_page=current_page set_current_page=set_current_page />
                 <MenuItem label="Uptime" target=Page::Uptime current_page=current_page set_current_page=set_current_page />
             </nav>
+
+            <ThemeSelector
+                theme_mode=theme_mode
+                set_theme_mode=set_theme_mode
+            />
         </aside>
     }
 }
@@ -243,9 +300,10 @@ fn HostsPage() -> impl IntoView {
                         <table class="status-table">
                             <thead>
                                 <tr>
-                                    <th>"Hostname"</th>
-                                    <th>"IP Address"</th>
-                                    <th>"Status"</th>
+                                <th>"Hostname"</th>
+                                <th>"Persona"</th>
+                                <th>"IP Address"</th>
+                                <th>"Status"</th>
                                 </tr>
                             </thead>
 
@@ -255,22 +313,20 @@ fn HostsPage() -> impl IntoView {
                                     .into_iter()
                                     .map(|host| {
                                         let status_class = match host.status {
-                                            0 => "status-pill down",
-                                            1 => "status-pill mixed",
-                                            2 => "status-pill up",
-                                            _ => "status-pill unknown",
+                                            HostState::Up => "status-pill up",
+                                            HostState::Down => "status-pill down",
+                                            HostState::Unknown => "status-pill unknown",
                                         };
 
                                         let status_label = match host.status {
-                                            0 => "Down",
-                                            1 => "Up",
-                                            2 => "Up",
-                                            _ => "Unknown",
+                                            HostState::Up => "Up",
+                                            HostState::Down => "Down",
+                                            HostState::Unknown => "Unknown",
                                         };
-
                                         view! {
                                             <tr>
                                                 <td>{host.hostname}</td>
+                                                <td>{host.persona}</td>
                                                 <td>{host.ip_address}</td>
                                                 <td>
                                                     <span class=status_class>
@@ -336,6 +392,7 @@ fn AppShell(
     let name = current_user.name.clone();
     let email = current_user.email.clone();
     let (current_page, set_current_page) = signal(Page::from_path(&current_path()));
+    let (theme_mode, set_theme_mode) = signal(ThemeMode::System);
 
     view! {
         <main class="app-shell">
@@ -350,6 +407,8 @@ fn AppShell(
                     menu_open=menu_open
                     current_page=current_page
                     set_current_page=set_current_page
+                    theme_mode=theme_mode
+                    set_theme_mode=set_theme_mode
                 />
 
                 <CurrentPage

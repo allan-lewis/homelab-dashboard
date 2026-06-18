@@ -20,10 +20,19 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_sessions::{MemoryStore, Session, SessionManagerLayer};
 
 #[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum HostState {
+    Up,
+    Down,
+    // Unknown,
+}
+
+#[derive(Clone, Debug, Serialize)]
 struct HostStatus {
     hostname: String,
+    persona: String,
     ip_address: String,
-    status: u8,
+    status: HostState,
     timestamp: f64,
 }
 
@@ -63,6 +72,7 @@ impl AuthConfig {
 struct AppState {
     auth_config: AuthConfig,
     host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
+    gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,6 +89,15 @@ struct PrometheusData {
 struct PrometheusResult {
     metric: HashMap<String, String>,
     value: (f64, String),
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct GatusHostStatus {
+    instance: String,
+    name: String,
+    target: String,
+    timestamp: f64,
+    up: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -275,62 +294,131 @@ async fn me(session: Session) -> impl IntoResponse {
     Json(user)
 }
 
-fn derive_hosts_from_up(statuses: &[HostUpStatus]) -> Vec<HostStatus> {
-    let mut grouped: HashMap<String, Vec<&HostUpStatus>> = HashMap::new();
+// fn derive_hosts_from_up(statuses: &[HostUpStatus]) -> Vec<HostStatus> {
+//     let mut grouped: HashMap<String, Vec<&HostUpStatus>> = HashMap::new();
+//
+//     for status in statuses {
+//         grouped
+//             .entry(status.instance.clone())
+//             .or_default()
+//             .push(status);
+//     }
+//
+//     let mut hosts = grouped
+//         .into_iter()
+//         .map(|(hostname, entries)| {
+//             let all_up = entries.iter().all(|entry| entry.up);
+//             let all_down = entries.iter().all(|entry| !entry.up);
+//
+//             let status = if all_down {
+//                 0
+//             } else if all_up {
+//                 2
+//             } else {
+//                 1
+//             };
+//
+//             let timestamp = entries
+//                 .iter()
+//                 .map(|entry| entry.timestamp)
+//                 .fold(0.0, f64::max);
+//
+//             let ip_address = entries
+//                 .iter()
+//                 .find_map(|entry| entry.target.split_once(':').map(|(ip, _)| ip.to_string()))
+//                 .unwrap_or_default();
+//
+//             HostStatus {
+//                 hostname,
+//                 ip_address,
+//                 status,
+//                 timestamp,
+//             }
+//         })
+//         .collect::<Vec<_>>();
+//
+//     hosts.sort_by(|a, b| a.hostname.cmp(&b.hostname));
+//
+//     hosts
+// }
 
-    for status in statuses {
-        grouped
-            .entry(status.instance.clone())
-            .or_default()
-            .push(status);
-    }
+async fn hosts(State(state): State<AppState>) -> Json<Vec<HostStatus>> {
+    let gatus_statuses = state.gatus_host_cache.read().await;
+    let up_statuses = state.host_up_cache.read().await;
 
-    let mut hosts = grouped
-        .into_iter()
-        .map(|(hostname, entries)| {
-            let all_up = entries.iter().all(|entry| entry.up);
-            let all_down = entries.iter().all(|entry| !entry.up);
-
-            let status = if all_down {
-                0
-            } else if all_up {
-                2
+    let mut hosts = gatus_statuses
+        .iter()
+        .map(|status| HostStatus {
+            hostname: status.instance.clone(),
+            persona: persona_from_name(&status.name),
+            ip_address: ip_address_for_host(&status.instance, &up_statuses),
+            status: if status.up {
+                HostState::Up
             } else {
-                1
-            };
-
-            let timestamp = entries
-                .iter()
-                .map(|entry| entry.timestamp)
-                .fold(0.0, f64::max);
-
-            let ip_address = entries
-                .iter()
-                .find_map(|entry| entry.target.split_once(':').map(|(ip, _)| ip.to_string()))
-                .unwrap_or_default();
-
-            HostStatus {
-                hostname,
-                ip_address,
-                status,
-                timestamp,
-            }
+                HostState::Down
+            },
+            timestamp: status.timestamp,
         })
         .collect::<Vec<_>>();
 
     hosts.sort_by(|a, b| a.hostname.cmp(&b.hostname));
 
-    hosts
-}
-
-async fn hosts(State(state): State<AppState>) -> Json<Vec<HostStatus>> {
-    let statuses = state.host_up_cache.read().await;
-    Json(derive_hosts_from_up(&statuses))
+    Json(hosts)
 }
 
 async fn prometheus_up(State(state): State<AppState>) -> Json<Vec<HostUpStatus>> {
     let statuses = state.host_up_cache.read().await.clone();
     Json(statuses)
+}
+
+async fn fetch_gatus_hosts(
+    prometheus_url: &str,
+    client: &reqwest::Client,
+) -> Result<Vec<GatusHostStatus>, String> {
+    let response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", r#"gatus_results_endpoint_success{group="Hosts"}"#)])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
+
+    let prometheus_response = response
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
+
+    let mut statuses = prometheus_response
+        .data
+        .result
+        .into_iter()
+        .map(|result| {
+            let name = result
+                .metric
+                .get("name")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let instance = hostname_from_name(&name);
+
+            let target = result
+                .metric
+                .get("target")
+                .cloned()
+                .unwrap_or_default();
+
+            GatusHostStatus {
+                instance,
+                name,
+                target,
+                timestamp: result.value.0,
+                up: result.value.1 == "1",
+            }
+        })
+        .collect::<Vec<_>>();
+
+    statuses.sort_by(|a, b| a.instance.cmp(&b.instance));
+
+    Ok(statuses)
 }
 
 async fn fetch_prometheus_up(
@@ -392,6 +480,29 @@ async fn fetch_prometheus_up(
     Ok(statuses)
 }
 
+fn start_gatus_host_polling(
+    prometheus_url: String,
+    cache: Arc<RwLock<Vec<GatusHostStatus>>>,
+) {
+    tokio::spawn(async move {
+        let client = reqwest::Client::new();
+
+        loop {
+            match fetch_gatus_hosts(&prometheus_url, &client).await {
+                Ok(statuses) => {
+                    println!("Updated Gatus host cache: {} entries", statuses.len());
+                    *cache.write().await = statuses;
+                }
+                Err(err) => {
+                    eprintln!("Failed to update Gatus host cache: {err}");
+                }
+            }
+
+            sleep(Duration::from_secs(30)).await;
+        }
+    });
+}
+
 fn start_prometheus_up_polling(
     prometheus_url: String,
     cache: Arc<RwLock<Vec<HostUpStatus>>>,
@@ -415,6 +526,33 @@ fn start_prometheus_up_polling(
     });
 }
 
+fn hostname_from_name(name: &str) -> String {
+    name.split_whitespace()
+        .next()
+        .unwrap_or("unknown")
+        .to_lowercase()
+}
+
+fn persona_from_name(name: &str) -> String {
+    let Some(start) = name.find('(') else {
+        return String::new();
+    };
+
+    let Some(end) = name[start + 1..].find(')') else {
+        return String::new();
+    };
+
+    name[start + 1..start + 1 + end].to_string()
+}
+
+fn ip_address_for_host(hostname: &str, up_statuses: &[HostUpStatus]) -> String {
+    up_statuses
+        .iter()
+        .find(|status| status.instance == hostname)
+        .and_then(|status| status.target.split_once(':').map(|(ip, _)| ip.to_string()))
+        .unwrap_or_default()
+}
+
 #[tokio::main]
 async fn main() {
     let auth_config = AuthConfig::from_env();
@@ -432,15 +570,22 @@ async fn main() {
     println!("  prometheus_url: {}", auth_config.prometheus_url);
 
     let host_up_cache = Arc::new(RwLock::new(Vec::<HostUpStatus>::new()));
+    let gatus_host_cache = Arc::new(RwLock::new(Vec::<GatusHostStatus>::new()));
 
     start_prometheus_up_polling(
         auth_config.prometheus_url.clone(),
         host_up_cache.clone(),
     );
 
+    start_gatus_host_polling(
+        auth_config.prometheus_url.clone(),
+        gatus_host_cache.clone(),
+    );
+
     let state = AppState {
         auth_config,
         host_up_cache,
+        gatus_host_cache,
     };
 
     let session_store = MemoryStore::default();
