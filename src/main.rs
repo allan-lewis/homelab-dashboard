@@ -95,6 +95,53 @@ fn current_path() -> String {
         .unwrap_or_else(|_| "/".to_string())
 }
 
+fn theme_mode_from_storage() -> ThemeMode {
+    let Some(window) = web_sys::window() else {
+        return ThemeMode::System;
+    };
+
+    let Ok(Some(storage)) = window.local_storage() else {
+        return ThemeMode::System;
+    };
+
+    match storage.get_item("theme-mode").ok().flatten().as_deref() {
+        Some("light") => ThemeMode::Light,
+        Some("dark") => ThemeMode::Dark,
+        _ => ThemeMode::System,
+    }
+}
+
+fn theme_mode_to_storage_value(theme_mode: ThemeMode) -> &'static str {
+    match theme_mode {
+        ThemeMode::System => "system",
+        ThemeMode::Light => "light",
+        ThemeMode::Dark => "dark",
+    }
+}
+
+fn apply_theme_mode(theme_mode: ThemeMode) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+
+    let Some(document) = window.document() else {
+        return;
+    };
+
+    let Some(root) = document.document_element() else {
+        return;
+    };
+
+    root.set_attribute("data-theme", theme_mode_to_storage_value(theme_mode))
+        .expect("failed to set data-theme");
+
+    if let Ok(Some(storage)) = window.local_storage() {
+        storage
+            .set_item("theme-mode", theme_mode_to_storage_value(theme_mode))
+            .expect("failed to save theme mode");
+    }
+}
+
 fn push_path(path: &str) {
     let window = web_sys::window().expect("missing window");
     window
@@ -202,7 +249,10 @@ fn ThemeSelector(
         <div class="theme-selector">
             <button
                 class=move || if theme_mode.get() == ThemeMode::System { "theme-button active" } else { "theme-button" }
-                on:click=move |_| set_theme_mode.set(ThemeMode::System)
+                on:click=move |_| {
+                    set_theme_mode.set(ThemeMode::System);
+                    apply_theme_mode(ThemeMode::System);
+                }
                 title="Follow system theme"
             >
                 "AUTO"
@@ -210,7 +260,10 @@ fn ThemeSelector(
 
             <button
                 class=move || if theme_mode.get() == ThemeMode::Light { "theme-button active" } else { "theme-button" }
-                on:click=move |_| set_theme_mode.set(ThemeMode::Light)
+                on:click=move |_| {
+                    set_theme_mode.set(ThemeMode::Light);
+                    apply_theme_mode(ThemeMode::Light);
+                }
                 title="Use light theme"
             >
                 "LIGHT"
@@ -218,7 +271,10 @@ fn ThemeSelector(
 
             <button
                 class=move || if theme_mode.get() == ThemeMode::Dark { "theme-button active" } else { "theme-button" }
-                on:click=move |_| set_theme_mode.set(ThemeMode::Dark)
+                on:click=move |_| {
+                    set_theme_mode.set(ThemeMode::Dark);
+                    apply_theme_mode(ThemeMode::Dark);
+                }
                 title="Use dark theme"
             >
                 "DARK"
@@ -392,7 +448,10 @@ fn AppShell(
     let name = current_user.name.clone();
     let email = current_user.email.clone();
     let (current_page, set_current_page) = signal(Page::from_path(&current_path()));
-    let (theme_mode, set_theme_mode) = signal(ThemeMode::System);
+    let initial_theme_mode = theme_mode_from_storage();
+    apply_theme_mode(initial_theme_mode);
+
+    let (theme_mode, set_theme_mode) = signal(initial_theme_mode);
 
     view! {
         <main class="app-shell">

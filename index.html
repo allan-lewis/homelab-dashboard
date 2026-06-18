@@ -11,11 +11,55 @@
         box-sizing: border-box;
       }
 
+      :root,
+      html[data-theme="light"] {
+        --bg: #ffffff;
+        --text: #111111;
+        --muted-text: #555555;
+        --border: #dddddd;
+        --button-bg: #ffffff;
+        --hover-bg: #f0f0f0;
+        --active-bg: #d9d9d9;
+        --active-hover-bg: #d0d0d0;
+        --table-header-bg: #f5f5f5;
+        --active-border: #888888;
+      }
+
+      html[data-theme="dark"] {
+        --bg: #181818;
+        --text: #eeeeee;
+        --muted-text: #aaaaaa;
+        --border: #3a3a3a;
+        --button-bg: #242424;
+        --hover-bg: #2f2f2f;
+        --active-bg: #3a3a3a;
+        --active-hover-bg: #444444;
+        --table-header-bg: #242424;
+        --active-border: #aaaaaa;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html[data-theme="system"] {
+          --bg: #181818;
+          --text: #eeeeee;
+          --muted-text: #aaaaaa;
+          --border: #3a3a3a;
+          --button-bg: #242424;
+          --hover-bg: #2f2f2f;
+          --active-bg: #3a3a3a;
+          --active-hover-bg: #444444;
+          --table-header-bg: #242424;
+          --active-border: #aaaaaa;
+        }
+      }
+
       html,
       body {
         margin: 0;
         min-height: 100%;
         font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
       }
 
       body {
@@ -25,6 +69,7 @@
       button {
         font: inherit;
         cursor: pointer;
+        color: inherit;
       }
 
       .login-page {
@@ -37,9 +82,9 @@
       .primary-button,
       .secondary-button,
       .icon-button {
-        border: 1px solid #ccc;
+        border: 1px solid var(--border);
         border-radius: 0.5rem;
-        background: white;
+        background: var(--button-bg);
         padding: 0.6rem 0.9rem;
       }
 
@@ -60,7 +105,7 @@
         align-items: center;
         justify-content: space-between;
         padding: 0 1rem;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid var(--border);
       }
 
       .header-left,
@@ -77,7 +122,7 @@
 
       .user-label {
         font-size: 0.9rem;
-        color: #555;
+        color: var(--muted-text);
       }
 
       .app-body {
@@ -87,7 +132,7 @@
       }
 
       .side-menu {
-        border-right: 1px solid #ddd;
+        border-right: 1px solid var(--border);
         transition: width 150ms ease;
         overflow: hidden;
       }
@@ -122,7 +167,7 @@
 
       .theme-button {
         flex: 1;
-        border: 1px solid #ccc;
+        border: 1px solid var(--border);
         border-radius: 0.5rem;
         background: transparent;
         padding: 0.45rem 0.35rem;
@@ -132,12 +177,12 @@
       }
 
       .theme-button:hover {
-        background: #f0f0f0;
+        background: var(--hover-bg);
       }
 
       .theme-button.active {
-        background: #d9d9d9;
-        border-color: #888;
+        background: var(--active-bg);
+        border-color: var(--active-border);
       }
 
       .menu-item {
@@ -155,17 +200,17 @@
       }
 
       .menu-item:hover {
-        background: #f0f0f0;
+        background: var(--hover-bg);
       }
 
       .menu-item.active {
-        background: #d9d9d9;
-        border-left-color: #888;
+        background: var(--active-bg);
+        border-left-color: var(--active-border);
         font-weight: 600;
       }
 
       .menu-item.active:hover {
-        background: #d0d0d0;
+        background: var(--active-hover-bg);
       }
 
       .page-content {
@@ -183,13 +228,13 @@
 
       .status-table th,
       .status-table td {
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid var(--border);
         padding: 0.6rem 0.75rem;
         text-align: left;
       }
 
       .status-table th {
-        background: #f5f5f5;
+        background: var(--table-header-bg);
         font-weight: 600;
       }
 

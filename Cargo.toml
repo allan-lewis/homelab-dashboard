@@ -20,7 +20,7 @@ gloo-net = "0.6"
 gloo-timers = { version = "0.3", features = ["futures"] }
 leptos = { version = "0.8.19", features = ["csr"] }
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Location", "History"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "History", "Document", "Element", "Storage"] }
 
 [[bin]]
 name = "server"
