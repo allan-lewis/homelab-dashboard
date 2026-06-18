@@ -164,12 +164,20 @@ fn LoadingPage() -> impl IntoView {
 fn LoginPage() -> impl IntoView {
     view! {
         <main class="login-page">
-            <button
-                class="primary-button"
-                on:click=move |_| redirect_to("/auth/login")
-            >
-                "Login with Authentik"
-            </button>
+            <div class="login-card">
+                <h1>"Homelab Dashboard"</h1>
+
+                <p>
+                    "Sign in with Authentik to continue."
+                </p>
+
+                <button
+                    class="primary-button"
+                    on:click=move |_| redirect_to("/auth/login")
+                >
+                    "Login with Authentik"
+                </button>
+            </div>
         </main>
     }
 }
@@ -449,7 +457,6 @@ fn AppShell(
     let email = current_user.email.clone();
     let (current_page, set_current_page) = signal(Page::from_path(&current_path()));
     let initial_theme_mode = theme_mode_from_storage();
-    apply_theme_mode(initial_theme_mode);
 
     let (theme_mode, set_theme_mode) = signal(initial_theme_mode);
 
@@ -523,5 +530,8 @@ fn App() -> impl IntoView {
 }
 
 fn main() {
+    let initial_theme_mode = theme_mode_from_storage();
+    apply_theme_mode(initial_theme_mode);
+
     leptos::mount::mount_to_body(App);
 }

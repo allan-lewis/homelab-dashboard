@@ -77,6 +77,27 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        background: var(--bg);
+      }
+
+      .login-card {
+        width: 100%;
+        max-width: 24rem;
+        padding: 2rem;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: var(--button-bg);
+        text-align: center;
+      }
+
+      .login-card h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.5rem;
+      }
+
+      .login-card p {
+        margin: 0 0 1.5rem 0;
+        color: var(--muted-text);
       }
 
       .primary-button,
@@ -129,12 +150,14 @@
         flex: 1;
         min-height: 0;
         display: flex;
+        height: calc(100vh - 4rem);
       }
 
       .side-menu {
         border-right: 1px solid var(--border);
         transition: width 150ms ease;
         overflow: hidden;
+        position: relative;
       }
 
       .side-menu.open {
@@ -147,7 +170,7 @@
 
       .side-menu-content {
         width: 16rem;
-        height: calc(100vh - 4rem);
+        height: 100%;
         padding: 1rem;
         display: flex;
         flex-direction: column;
@@ -157,10 +180,14 @@
         display: flex;
         flex-direction: column;
         gap: 0.5rem;
+        padding-bottom: 3rem;
       }
 
       .theme-selector {
-        margin-top: auto;
+        position: absolute;
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
         display: flex;
         gap: 0.4rem;
       }
