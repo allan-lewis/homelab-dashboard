@@ -105,7 +105,7 @@ fn LoginPage() -> impl IntoView {
                 class="primary-button"
                 on:click=move |_| redirect_to("/auth/login")
             >
-                "Login"
+                "Login with Authentik"
             </button>
         </main>
     }
