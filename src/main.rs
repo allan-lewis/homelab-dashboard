@@ -1,5 +1,7 @@
 use gloo_net::http::Request;
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
+use leptos::wasm_bindgen::JsValue;
 use serde::Deserialize;
 use wasm_bindgen_futures::spawn_local;
 
@@ -10,6 +12,13 @@ struct HostUpStatus {
     target: String,
     // timestamp: f64,
     up: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct HostStatus {
+    hostname: String,
+    ip_address: String,
+    status: u8,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -40,6 +49,43 @@ fn redirect_to(path: &str) {
         .location()
         .set_href(path)
         .expect("failed to redirect");
+}
+
+impl Page {
+    fn path(self) -> &'static str {
+        match self {
+            Page::Overview => "/",
+            Page::Hosts => "/hosts",
+            Page::Generations => "/generations",
+            Page::Uptime => "/uptime",
+        }
+    }
+
+    fn from_path(path: &str) -> Self {
+        match path {
+            "/hosts" => Page::Hosts,
+            "/generations" => Page::Generations,
+            "/uptime" => Page::Uptime,
+            _ => Page::Overview,
+        }
+    }
+}
+
+fn current_path() -> String {
+    web_sys::window()
+        .expect("missing window")
+        .location()
+        .pathname()
+        .unwrap_or_else(|_| "/".to_string())
+}
+
+fn push_path(path: &str) {
+    let window = web_sys::window().expect("missing window");
+    window
+        .history()
+        .expect("missing history")
+        .push_state_with_url(&JsValue::NULL, "", Some(path))
+        .expect("failed to push history state");
 }
 
 #[component]
@@ -123,6 +169,7 @@ fn MenuItem(
             }
             on:click=move |_| {
                 set_current_page.set(target);
+                push_path(target.path());
             }
         >
             {label}
@@ -167,17 +214,21 @@ fn OverviewPage(name: String) -> impl IntoView {
 
 #[component]
 fn HostsPage() -> impl IntoView {
-    let (statuses, set_statuses) = signal(Vec::<HostUpStatus>::new());
+    let (hosts, set_hosts) = signal(Vec::<HostStatus>::new());
     let (loaded, set_loaded) = signal(false);
 
     spawn_local(async move {
-        let loaded_statuses = match Request::get("/api/prometheus/up").send().await {
-            Ok(response) => response.json::<Vec<HostUpStatus>>().await.unwrap_or_default(),
-            Err(_) => Vec::new(),
-        };
+        loop {
+            let loaded_hosts = match Request::get("/api/hosts").send().await {
+                Ok(response) => response.json::<Vec<HostStatus>>().await.unwrap_or_default(),
+                Err(_) => Vec::new(),
+            };
 
-        set_statuses.set(loaded_statuses);
-        set_loaded.set(true);
+            set_hosts.set(loaded_hosts);
+            set_loaded.set(true);
+
+            TimeoutFuture::new(10_000).await;
+        }
     });
 
     view! {
@@ -186,34 +237,45 @@ fn HostsPage() -> impl IntoView {
 
             {move || {
                 if !loaded.get() {
-                    view! {
-                        <p>"Loading host status..."</p>
-                    }
-                    .into_any()
+                    view! { <p>"Loading hosts..."</p> }.into_any()
                 } else {
                     view! {
                         <table class="status-table">
                             <thead>
                                 <tr>
-                                    <th>"Instance"</th>
-                                    <th>"Job"</th>
-                                    <th>"Target"</th>
+                                    <th>"Hostname"</th>
+                                    <th>"IP Address"</th>
                                     <th>"Status"</th>
                                 </tr>
                             </thead>
 
                             <tbody>
-                                {statuses
+                                {hosts
                                     .get()
                                     .into_iter()
-                                    .map(|status| {
+                                    .map(|host| {
+                                        let status_class = match host.status {
+                                            0 => "status-pill down",
+                                            1 => "status-pill mixed",
+                                            2 => "status-pill up",
+                                            _ => "status-pill unknown",
+                                        };
+
+                                        let status_label = match host.status {
+                                            0 => "Down",
+                                            1 => "Up",
+                                            2 => "Up",
+                                            _ => "Unknown",
+                                        };
+
                                         view! {
                                             <tr>
-                                                <td>{status.instance}</td>
-                                                <td>{status.job}</td>
-                                                <td>{status.target}</td>
+                                                <td>{host.hostname}</td>
+                                                <td>{host.ip_address}</td>
                                                 <td>
-                                                    {if status.up { "Up" } else { "Down" }}
+                                                    <span class=status_class>
+                                                        {status_label}
+                                                    </span>
                                                 </td>
                                             </tr>
                                         }
@@ -221,8 +283,7 @@ fn HostsPage() -> impl IntoView {
                                     .collect_view()}
                             </tbody>
                         </table>
-                    }
-                    .into_any()
+                    }.into_any()
                 }
             }}
         </section>
@@ -274,7 +335,7 @@ fn AppShell(
 ) -> impl IntoView {
     let name = current_user.name.clone();
     let email = current_user.email.clone();
-    let (current_page, set_current_page) = signal(Page::Overview);
+    let (current_page, set_current_page) = signal(Page::from_path(&current_path()));
 
     view! {
         <main class="app-shell">

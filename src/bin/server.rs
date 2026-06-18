@@ -11,9 +11,21 @@ use openidconnect::{
     RedirectUrl, Scope, TokenResponse,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use tower_http::services::ServeDir;
+use std::{collections::HashMap, sync::Arc};
+use tokio::{
+    sync::RwLock,
+    time::{sleep, Duration},
+};
+use tower_http::services::{ServeDir, ServeFile};
 use tower_sessions::{MemoryStore, Session, SessionManagerLayer};
+
+#[derive(Clone, Debug, Serialize)]
+struct HostStatus {
+    hostname: String,
+    ip_address: String,
+    status: u8,
+    timestamp: f64,
+}
 
 #[derive(Clone, Debug)]
 struct AuthConfig {
@@ -50,6 +62,7 @@ impl AuthConfig {
 #[derive(Clone)]
 struct AppState {
     auth_config: AuthConfig,
+    host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -262,25 +275,79 @@ async fn me(session: Session) -> impl IntoResponse {
     Json(user)
 }
 
-async fn prometheus_up(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<HostUpStatus>>, (StatusCode, String)> {
-    let client = reqwest::Client::new();
+fn derive_hosts_from_up(statuses: &[HostUpStatus]) -> Vec<HostStatus> {
+    let mut grouped: HashMap<String, Vec<&HostUpStatus>> = HashMap::new();
 
+    for status in statuses {
+        grouped
+            .entry(status.instance.clone())
+            .or_default()
+            .push(status);
+    }
+
+    let mut hosts = grouped
+        .into_iter()
+        .map(|(hostname, entries)| {
+            let all_up = entries.iter().all(|entry| entry.up);
+            let all_down = entries.iter().all(|entry| !entry.up);
+
+            let status = if all_down {
+                0
+            } else if all_up {
+                2
+            } else {
+                1
+            };
+
+            let timestamp = entries
+                .iter()
+                .map(|entry| entry.timestamp)
+                .fold(0.0, f64::max);
+
+            let ip_address = entries
+                .iter()
+                .find_map(|entry| entry.target.split_once(':').map(|(ip, _)| ip.to_string()))
+                .unwrap_or_default();
+
+            HostStatus {
+                hostname,
+                ip_address,
+                status,
+                timestamp,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    hosts.sort_by(|a, b| a.hostname.cmp(&b.hostname));
+
+    hosts
+}
+
+async fn hosts(State(state): State<AppState>) -> Json<Vec<HostStatus>> {
+    let statuses = state.host_up_cache.read().await;
+    Json(derive_hosts_from_up(&statuses))
+}
+
+async fn prometheus_up(State(state): State<AppState>) -> Json<Vec<HostUpStatus>> {
+    let statuses = state.host_up_cache.read().await.clone();
+    Json(statuses)
+}
+
+async fn fetch_prometheus_up(
+    prometheus_url: &str,
+    client: &reqwest::Client,
+) -> Result<Vec<HostUpStatus>, String> {
     let response = client
-        .get(format!(
-            "{}/api/v1/query",
-            state.auth_config.prometheus_url
-        ))
+        .get(format!("{}/api/v1/query", prometheus_url))
         .query(&[("query", "up")])
         .send()
         .await
-        .map_err(internal_error)?;
+        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
 
     let prometheus_response = response
         .json::<PrometheusQueryResponse>()
         .await
-        .map_err(internal_error)?;
+        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
 
     let mut statuses = prometheus_response
         .data
@@ -303,7 +370,7 @@ async fn prometheus_up(
                 .metric
                 .get("target")
                 .cloned()
-                .unwrap_or_else(|| "".to_string());
+                .unwrap_or_default();
 
             HostUpStatus {
                 instance,
@@ -322,7 +389,30 @@ async fn prometheus_up(
             .then_with(|| a.target.cmp(&b.target))
     });
 
-    Ok(Json(statuses))
+    Ok(statuses)
+}
+
+fn start_prometheus_up_polling(
+    prometheus_url: String,
+    cache: Arc<RwLock<Vec<HostUpStatus>>>,
+) {
+    tokio::spawn(async move {
+        let client = reqwest::Client::new();
+
+        loop {
+            match fetch_prometheus_up(&prometheus_url, &client).await {
+                Ok(statuses) => {
+                    println!("Updated Prometheus up cache: {} entries", statuses.len());
+                    *cache.write().await = statuses;
+                }
+                Err(err) => {
+                    eprintln!("Failed to update Prometheus up cache: {err}");
+                }
+            }
+
+            sleep(Duration::from_secs(30)).await;
+        }
+    });
 }
 
 #[tokio::main]
@@ -341,7 +431,17 @@ async fn main() {
     println!("  client_secret: {}", redacted(&auth_config.client_secret));
     println!("  prometheus_url: {}", auth_config.prometheus_url);
 
-    let state = AppState { auth_config };
+    let host_up_cache = Arc::new(RwLock::new(Vec::<HostUpStatus>::new()));
+
+    start_prometheus_up_polling(
+        auth_config.prometheus_url.clone(),
+        host_up_cache.clone(),
+    );
+
+    let state = AppState {
+        auth_config,
+        host_up_cache,
+    };
 
     let session_store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(session_store).with_secure(true);
@@ -352,7 +452,10 @@ async fn main() {
         .route("/auth/logout", get(logout))
         .route("/api/me", get(me))
         .route("/api/prometheus/up", get(prometheus_up))
-        .fallback_service(ServeDir::new("dist"))
+        .route("/api/hosts", get(hosts))
+        .fallback_service(
+            ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")),
+        )
         .with_state(state)
         .layer(session_layer);
 

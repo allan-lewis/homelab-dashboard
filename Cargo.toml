@@ -17,9 +17,10 @@ tower-sessions = "0.15.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-net = "0.6"
+gloo-timers = { version = "0.3", features = ["futures"] }
 leptos = { version = "0.8.19", features = ["csr"] }
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Location"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "History"] }
 
 [[bin]]
 name = "server"
