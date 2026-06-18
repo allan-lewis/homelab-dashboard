@@ -95,6 +95,36 @@ fn current_path() -> String {
         .unwrap_or_else(|_| "/".to_string())
 }
 
+fn menu_open_from_storage() -> bool {
+    let Some(window) = web_sys::window() else {
+        return true;
+    };
+
+    let Ok(Some(storage)) = window.local_storage() else {
+        return true;
+    };
+
+    match storage.get_item("menu-open").ok().flatten().as_deref() {
+        Some("false") => false,
+        _ => true,
+    }
+}
+
+fn save_menu_open(menu_open: bool) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+
+    let Ok(Some(storage)) = window.local_storage() else {
+        return;
+    };
+
+    let _ = storage.set_item(
+        "menu-open",
+        if menu_open { "true" } else { "false" },
+    );
+}
+
 fn theme_mode_from_storage() -> ThemeMode {
     let Some(window) = web_sys::window() else {
         return ThemeMode::System;
@@ -165,17 +195,23 @@ fn LoginPage() -> impl IntoView {
     view! {
         <main class="login-page">
             <div class="login-card">
-                <h1>"Homelab Dashboard"</h1>
+                <h1>"Allan's Home Lab Dashboard"</h1>
 
                 <p>
                     "Sign in with Authentik to continue."
                 </p>
 
                 <button
-                    class="primary-button"
+                    class="primary-button login-button"
                     on:click=move |_| redirect_to("/auth/login")
                 >
-                    "Login with Authentik"
+                    <img
+                        class="authentik-logo"
+                        src="/authentik.png"
+                        alt="Authentik"
+                    />
+
+                    <span>"Login with Authentik"</span>
                 </button>
             </div>
         </main>
@@ -186,6 +222,7 @@ fn LoginPage() -> impl IntoView {
 fn AppHeader(
     name: String,
     email: String,
+    menu_open: ReadSignal<bool>,
     set_menu_open: WriteSignal<bool>,
 ) -> impl IntoView {
     view! {
@@ -194,7 +231,10 @@ fn AppHeader(
                 <button
                     class="icon-button"
                     on:click=move |_| {
-                        set_menu_open.update(|open| *open = !*open);
+                        let new_value = !menu_open.get();
+
+                        set_menu_open.set(new_value);
+                        save_menu_open(new_value);
                     }
                 >
                     "☰"
@@ -465,6 +505,7 @@ fn AppShell(
             <AppHeader
                 name=name.clone()
                 email=email
+                menu_open=menu_open
                 set_menu_open=set_menu_open
             />
 
@@ -489,7 +530,7 @@ fn AppShell(
 #[component]
 fn App() -> impl IntoView {
     let (auth_state, set_auth_state) = signal(AuthState::Loading);
-    let (menu_open, set_menu_open) = signal(true);
+    let (menu_open, set_menu_open) = signal(menu_open_from_storage());
 
     spawn_local(async move {
         let loaded_user = match Request::get("/api/me").send().await {
