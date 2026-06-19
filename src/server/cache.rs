@@ -1,8 +1,9 @@
 use std::{future::Future, sync::Arc};
+use tracing::{error, info};
 
 use tokio::{
     sync::RwLock,
-    time::{sleep, Duration},
+    time::{Duration, sleep},
 };
 
 pub fn start_polling<T, F, Fut>(
@@ -21,11 +22,21 @@ pub fn start_polling<T, F, Fut>(
         loop {
             match fetch(prometheus_url.clone(), client.clone()).await {
                 Ok(statuses) => {
-                    println!("Updated {name} cache: {} entries", statuses.len());
-                    *cache.write().await = statuses;
+                    let current_count = statuses.len();
+
+                    let mut cache_guard = cache.write().await;
+                    let previous_count = cache_guard.len();
+                    let delta = current_count as isize - previous_count as isize;
+
+                    *cache_guard = statuses;
+
+                    info!(
+                        cache = name,
+                        previous_count, current_count, delta, "cache updated"
+                    );
                 }
                 Err(err) => {
-                    eprintln!("Failed to update {name} cache: {err}");
+                    error!(cache = name, %err, "cache update failed");
                 }
             }
 

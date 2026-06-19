@@ -6,28 +6,29 @@ mod metrics;
 mod models;
 mod util;
 
+use axum::{Router, routing::get};
 use cache::start_polling;
-use config::{redacted, AppConfig};
-use axum::{
-    routing::get,
-    Router,
-};
+use config::AppConfig;
 use metrics::{fetch_gatus_hosts, fetch_prometheus_up};
-use models::{
-    GatusHostStatus, HostUpStatus,
-};
-use std::{sync::Arc};
-use tokio::{
-    sync::RwLock,
-};
+use models::{GatusHostStatus, HostUpStatus};
+use std::sync::Arc;
+use std::time::Duration as StdDuration;
+use tokio::sync::RwLock;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::trace::TraceLayer;
 use tower_sessions::{MemoryStore, SessionManagerLayer};
+use tracing::{Level, info};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
     host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
     gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
+}
+
+fn sanitized_uri(uri: &axum::http::Uri) -> String {
+    uri.path().to_string()
 }
 
 fn router(state: AppState) -> Router {
@@ -44,22 +45,52 @@ fn router(state: AppState) -> Router {
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .with_state(state)
         .layer(session_layer)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<_>| {
+                    tracing::span!(
+                        Level::INFO,
+                        "http_request",
+                        method = %request.method(),
+                        uri = %sanitized_uri(request.uri()),
+                    )
+                })
+                .on_response(
+                    |response: &axum::http::Response<_>,
+                     latency: StdDuration,
+                     _span: &tracing::Span| {
+                        info!(
+                            status = response.status().as_u16(),
+                            latency_ms = latency.as_millis(),
+                            "request completed"
+                        );
+                    },
+                ),
+        )
+}
+
+fn init_tracing() {
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("server=info,tower_http=info"));
+
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 }
 
 pub async fn run() {
+    init_tracing();
+
     let config = AppConfig::from_env();
 
-    println!("Loaded Authentik config:");
-    println!("  issuer_url: {}", config.auth.issuer_url);
-    println!("  redirect_uri: {}", config.auth.redirect_uri);
-    println!("  logout_uri: {}", config.auth.logout_uri);
-    println!(
-        "  post_logout_redirect_uri: {}",
-        config.auth.post_logout_redirect_uri
+    info!(
+        issuer_url = %config.auth.issuer_url,
+        redirect_uri = %config.auth.redirect_uri,
+        logout_uri = %config.auth.logout_uri,
+        post_logout_redirect_uri = %config.auth.post_logout_redirect_uri,
+        client_id = config::redacted(&config.auth.client_id),
+        client_secret = config::redacted(&config.auth.client_secret),
+        prometheus_url = %config.prometheus.url,
+        "loaded server config"
     );
-    println!("  client_id: {}", redacted(&config.auth.client_id));
-    println!("  client_secret: {}", redacted(&config.auth.client_secret));
-    println!("  prometheus_url: {}", config.prometheus.url);
 
     let host_up_cache = Arc::new(RwLock::new(Vec::<HostUpStatus>::new()));
     let gatus_host_cache = Arc::new(RwLock::new(Vec::<GatusHostStatus>::new()));
@@ -90,9 +121,7 @@ pub async fn run() {
         .await
         .expect("failed to bind to port 3000");
 
-    println!("Listening on http://0.0.0.0:3000");
+    info!("listening on http://0.0.0.0:3000");
 
-    axum::serve(listener, app)
-        .await
-        .expect("server failed");
+    axum::serve(listener, app).await.expect("server failed");
 }

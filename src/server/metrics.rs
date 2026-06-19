@@ -32,11 +32,7 @@ pub async fn fetch_gatus_hosts(
 
             let instance = hostname_from_name(&name);
 
-            let target = result
-                .metric
-                .get("target")
-                .cloned()
-                .unwrap_or_default();
+            let target = result.metric.get("target").cloned().unwrap_or_default();
 
             GatusHostStatus {
                 instance,
@@ -86,11 +82,7 @@ pub async fn fetch_prometheus_up(
                 .cloned()
                 .unwrap_or_else(|| "unknown".to_string());
 
-            let target = result
-                .metric
-                .get("target")
-                .cloned()
-                .unwrap_or_default();
+            let target = result.metric.get("target").cloned().unwrap_or_default();
 
             HostUpStatus {
                 instance,

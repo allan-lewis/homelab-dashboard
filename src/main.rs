@@ -119,10 +119,7 @@ fn save_menu_open(menu_open: bool) {
         return;
     };
 
-    let _ = storage.set_item(
-        "menu-open",
-        if menu_open { "true" } else { "false" },
-    );
+    let _ = storage.set_item("menu-open", if menu_open { "true" } else { "false" });
 }
 
 fn theme_mode_from_storage() -> ThemeMode {
@@ -471,10 +468,7 @@ fn UptimePage() -> impl IntoView {
 }
 
 #[component]
-fn CurrentPage(
-    current_page: ReadSignal<Page>,
-    name: String,
-) -> impl IntoView {
+fn CurrentPage(current_page: ReadSignal<Page>, name: String) -> impl IntoView {
     view! {
         {move || {
             match current_page.get() {

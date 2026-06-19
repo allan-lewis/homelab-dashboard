@@ -1,10 +1,10 @@
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use tower_sessions::Session;
 
 use super::{
+    AppState,
     models::{HostState, HostStatus, HostUpStatus, User},
     util::{ip_address_for_host, persona_from_name},
-    AppState,
 };
 
 pub async fn me(session: Session) -> Json<Option<User>> {

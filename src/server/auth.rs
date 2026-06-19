@@ -3,22 +3,24 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Redirect},
 };
+use tracing::{error, info, warn};
 
 use openidconnect::{
-    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata},
     AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce, RedirectUrl, Scope,
     TokenResponse,
+    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata},
 };
 
 use tower_sessions::Session;
 
 use super::{
-    models::{AuthCallbackParams, User},
     AppState,
+    models::{AuthCallbackParams, User},
 };
 
 fn internal_error(message: impl std::fmt::Display) -> (StatusCode, String) {
-    eprintln!("Auth error: {message}");
+    error!(error = %message, "auth error");
+
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         "Authentication failed".to_string(),
@@ -26,6 +28,8 @@ fn internal_error(message: impl std::fmt::Display) -> (StatusCode, String) {
 }
 
 pub async fn login(State(state): State<AppState>, session: Session) -> impl IntoResponse {
+    info!("starting OIDC login");
+
     let http_client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()
@@ -79,16 +83,22 @@ pub async fn auth_callback(
     let expected_state: Option<String> = session.get("oauth_csrf").await.map_err(internal_error)?;
 
     let Some(expected_state) = expected_state else {
+        warn!("missing OAuth state");
+
         return Err((StatusCode::BAD_REQUEST, "Missing OAuth state".to_string()));
     };
 
     if params.state != expected_state {
+        warn!("invalid OAuth state");
+
         return Err((StatusCode::BAD_REQUEST, "Invalid OAuth state".to_string()));
     }
 
     let nonce_value: Option<String> = session.get("oauth_nonce").await.map_err(internal_error)?;
 
     let Some(nonce_value) = nonce_value else {
+        warn!("missing OAuth nonce");
+
         return Err((StatusCode::BAD_REQUEST, "Missing OAuth nonce".to_string()));
     };
 
@@ -143,6 +153,8 @@ pub async fn auth_callback(
         .unwrap_or_else(|| "".to_string());
 
     let user = User { name, email };
+
+    info!(email = %user.email, name = %user.name, "user authenticated");
 
     session.insert("user", user).await.map_err(internal_error)?;
 
