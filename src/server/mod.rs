@@ -9,8 +9,8 @@ mod util;
 use axum::{Router, routing::get};
 use cache::start_polling;
 use config::AppConfig;
-use metrics::{fetch_gatus_hosts, fetch_prometheus_up};
-use models::{GatusHostStatus, HostUpStatus};
+use metrics::{fetch_firing_alerts, fetch_gatus_hosts, fetch_prometheus_up};
+use models::{FiringAlert, GatusHostStatus, HostUpStatus};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::RwLock;
@@ -23,6 +23,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
+    firing_alerts_cache: Arc<RwLock<Vec<FiringAlert>>>,
     host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
     gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
 }
@@ -42,6 +43,7 @@ fn router(state: AppState) -> Router {
         .route("/api/me", get(handlers::me))
         .route("/api/prometheus/up", get(handlers::prometheus_up))
         .route("/api/hosts", get(handlers::hosts))
+        .route("/api/alerts", get(handlers::alerts))
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .with_state(state)
         .layer(session_layer)
@@ -92,6 +94,7 @@ pub async fn run() {
         "loaded server config"
     );
 
+    let firing_alerts_cache = Arc::new(RwLock::new(Vec::<FiringAlert>::new()));
     let host_up_cache = Arc::new(RwLock::new(Vec::<HostUpStatus>::new()));
     let gatus_host_cache = Arc::new(RwLock::new(Vec::<GatusHostStatus>::new()));
 
@@ -109,8 +112,16 @@ pub async fn run() {
         fetch_gatus_hosts,
     );
 
+    start_polling(
+        "firing_alerts",
+        config.prometheus.url.clone(),
+        firing_alerts_cache.clone(),
+        fetch_firing_alerts,
+    );
+
     let state = AppState {
         config,
+        firing_alerts_cache,
         host_up_cache,
         gatus_host_cache,
     };

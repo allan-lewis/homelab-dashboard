@@ -1,7 +1,84 @@
 use super::{
-    models::{GatusHostStatus, HostUpStatus, PrometheusQueryResponse},
+    models::{FiringAlert, GatusHostStatus, HostUpStatus, PrometheusQueryResponse},
     util::hostname_from_name,
 };
+
+pub async fn fetch_firing_alerts(
+    prometheus_url: String,
+    client: reqwest::Client,
+) -> Result<Vec<FiringAlert>, String> {
+    let response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", r#"ALERTS{alertstate="firing"}"#)])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
+
+    let prometheus_response = response
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
+
+    let mut alerts = prometheus_response
+        .data
+        .result
+        .into_iter()
+        .map(|result| {
+            let alertname = result
+                .metric
+                .get("alertname")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let name = result
+                .metric
+                .get("name")
+                .cloned()
+                .unwrap_or_default();
+
+            let rulegroup = result
+                .metric
+                .get("rulegroup")
+                .cloned()
+                .unwrap_or_default();
+
+            let instance = result
+                .metric
+                .get("instance")
+                .cloned()
+                .unwrap_or_default();
+
+            let severity = result
+                .metric
+                .get("severity")
+                .cloned()
+                .unwrap_or_default();
+
+            let key = format!("{alertname}:{name}:{rulegroup}:{instance}");
+
+            FiringAlert {
+                key,
+                alertname,
+                name,
+                rulegroup,
+                severity,
+                instance,
+                timestamp: result.value.0,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    alerts.sort_by(|a, b| {
+        a.severity
+            .cmp(&b.severity)
+            .then_with(|| a.rulegroup.cmp(&b.rulegroup))
+            .then_with(|| a.alertname.cmp(&b.alertname))
+            .then_with(|| a.name.cmp(&b.name))
+            .then_with(|| a.instance.cmp(&b.instance))
+    });
+
+    Ok(alerts)
+}
 
 pub async fn fetch_gatus_hosts(
     prometheus_url: String,
