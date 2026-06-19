@@ -1,19 +1,18 @@
 mod auth;
 mod config;
+mod handlers;
 mod metrics;
 mod models;
 mod util;
 
 use config::{redacted, AppConfig};
 use axum::{
-    extract::{State},
-    response::{IntoResponse},
     routing::get,
-    Json, Router,
+    Router,
 };
 use metrics::{fetch_gatus_hosts, fetch_prometheus_up};
 use models::{
-    GatusHostStatus, HostState, HostStatus, HostUpStatus, User,
+    GatusHostStatus, HostUpStatus,
 };
 use std::{sync::Arc};
 use tokio::{
@@ -21,52 +20,13 @@ use tokio::{
     time::{sleep, Duration},
 };
 use tower_http::services::{ServeDir, ServeFile};
-use tower_sessions::{MemoryStore, Session, SessionManagerLayer};
-use util::{ip_address_for_host, persona_from_name};
+use tower_sessions::{MemoryStore, SessionManagerLayer};
 
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
     host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
     gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
-}
-
-async fn me(session: Session) -> impl IntoResponse {
-    let user: Option<User> = session
-        .get("user")
-        .await
-        .expect("failed to read user from session");
-
-    Json(user)
-}
-
-async fn hosts(State(state): State<AppState>) -> Json<Vec<HostStatus>> {
-    let gatus_statuses = state.gatus_host_cache.read().await;
-    let up_statuses = state.host_up_cache.read().await;
-
-    let mut hosts = gatus_statuses
-        .iter()
-        .map(|status| HostStatus {
-            hostname: status.instance.clone(),
-            persona: persona_from_name(&status.name),
-            ip_address: ip_address_for_host(&status.instance, &up_statuses),
-            status: if status.up {
-                HostState::Up
-            } else {
-                HostState::Down
-            },
-            timestamp: status.timestamp,
-        })
-        .collect::<Vec<_>>();
-
-    hosts.sort_by(|a, b| a.hostname.cmp(&b.hostname));
-
-    Json(hosts)
-}
-
-async fn prometheus_up(State(state): State<AppState>) -> Json<Vec<HostUpStatus>> {
-    let statuses = state.host_up_cache.read().await.clone();
-    Json(statuses)
 }
 
 fn start_gatus_host_polling(
@@ -115,6 +75,22 @@ fn start_prometheus_up_polling(
     });
 }
 
+fn router(state: AppState) -> Router {
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store).with_secure(true);
+
+    Router::new()
+        .route("/auth/login", get(auth::login))
+        .route("/auth/callback/authentik", get(auth::auth_callback))
+        .route("/auth/logout", get(auth::logout))
+        .route("/api/me", get(handlers::me))
+        .route("/api/prometheus/up", get(handlers::prometheus_up))
+        .route("/api/hosts", get(handlers::hosts))
+        .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
+        .with_state(state)
+        .layer(session_layer)
+}
+
 pub async fn run() {
     let config = AppConfig::from_env();
 
@@ -149,21 +125,7 @@ pub async fn run() {
         gatus_host_cache,
     };
 
-    let session_store = MemoryStore::default();
-    let session_layer = SessionManagerLayer::new(session_store).with_secure(true);
-
-    let app = Router::new()
-        .route("/auth/login", get(auth::login))
-        .route("/auth/callback/authentik", get(auth::auth_callback))
-        .route("/auth/logout", get(auth::logout))
-        .route("/api/me", get(me))
-        .route("/api/prometheus/up", get(prometheus_up))
-        .route("/api/hosts", get(hosts))
-        .fallback_service(
-            ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")),
-        )
-        .with_state(state)
-        .layer(session_layer);
+    let app = router(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await
