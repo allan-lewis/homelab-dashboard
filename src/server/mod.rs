@@ -1,10 +1,12 @@
 mod auth;
+mod cache;
 mod config;
 mod handlers;
 mod metrics;
 mod models;
 mod util;
 
+use cache::start_polling;
 use config::{redacted, AppConfig};
 use axum::{
     routing::get,
@@ -17,7 +19,6 @@ use models::{
 use std::{sync::Arc};
 use tokio::{
     sync::RwLock,
-    time::{sleep, Duration},
 };
 use tower_http::services::{ServeDir, ServeFile};
 use tower_sessions::{MemoryStore, SessionManagerLayer};
@@ -27,52 +28,6 @@ struct AppState {
     config: AppConfig,
     host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
     gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
-}
-
-fn start_gatus_host_polling(
-    prometheus_url: String,
-    cache: Arc<RwLock<Vec<GatusHostStatus>>>,
-) {
-    tokio::spawn(async move {
-        let client = reqwest::Client::new();
-
-        loop {
-            match fetch_gatus_hosts(&prometheus_url, &client).await {
-                Ok(statuses) => {
-                    println!("Updated Gatus host cache: {} entries", statuses.len());
-                    *cache.write().await = statuses;
-                }
-                Err(err) => {
-                    eprintln!("Failed to update Gatus host cache: {err}");
-                }
-            }
-
-            sleep(Duration::from_secs(30)).await;
-        }
-    });
-}
-
-fn start_prometheus_up_polling(
-    prometheus_url: String,
-    cache: Arc<RwLock<Vec<HostUpStatus>>>,
-) {
-    tokio::spawn(async move {
-        let client = reqwest::Client::new();
-
-        loop {
-            match fetch_prometheus_up(&prometheus_url, &client).await {
-                Ok(statuses) => {
-                    println!("Updated Prometheus up cache: {} entries", statuses.len());
-                    *cache.write().await = statuses;
-                }
-                Err(err) => {
-                    eprintln!("Failed to update Prometheus up cache: {err}");
-                }
-            }
-
-            sleep(Duration::from_secs(30)).await;
-        }
-    });
 }
 
 fn router(state: AppState) -> Router {
@@ -109,14 +64,18 @@ pub async fn run() {
     let host_up_cache = Arc::new(RwLock::new(Vec::<HostUpStatus>::new()));
     let gatus_host_cache = Arc::new(RwLock::new(Vec::<GatusHostStatus>::new()));
 
-    start_prometheus_up_polling(
+    start_polling(
+        "prometheus_up",
         config.prometheus.url.clone(),
         host_up_cache.clone(),
+        fetch_prometheus_up,
     );
 
-    start_gatus_host_polling(
+    start_polling(
+        "gatus_hosts",
         config.prometheus.url.clone(),
         gatus_host_cache.clone(),
+        fetch_gatus_hosts,
     );
 
     let state = AppState {

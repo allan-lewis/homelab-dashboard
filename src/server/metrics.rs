@@ -4,8 +4,8 @@ use super::{
 };
 
 pub async fn fetch_gatus_hosts(
-    prometheus_url: &str,
-    client: &reqwest::Client,
+    prometheus_url: String,
+    client: reqwest::Client,
 ) -> Result<Vec<GatusHostStatus>, String> {
     let response = client
         .get(format!("{}/api/v1/query", prometheus_url))
@@ -54,8 +54,8 @@ pub async fn fetch_gatus_hosts(
 }
 
 pub async fn fetch_prometheus_up(
-    prometheus_url: &str,
-    client: &reqwest::Client,
+    prometheus_url: String,
+    client: reqwest::Client,
 ) -> Result<Vec<HostUpStatus>, String> {
     let response = client
         .get(format!("{}/api/v1/query", prometheus_url))
