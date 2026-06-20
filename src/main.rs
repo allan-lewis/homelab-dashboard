@@ -1,162 +1,20 @@
 mod frontend;
 
-use frontend::menu_state::{menu_open_from_storage, save_menu_open};
+use frontend::components::app_header::AppHeader;
+use frontend::components::side_menu::SideMenu;
+use frontend::menu_state::{menu_open_from_storage};
 use frontend::models::{AuthState, HostState, HostStatus, User};
 use frontend::pages::generations::GenerationsPage;
 use frontend::pages::loading::LoadingPage;
 use frontend::pages::login::LoginPage;
 use frontend::pages::overview::OverviewPage;
 use frontend::pages::uptime::UptimePage;
-use frontend::routing::{current_path, push_path, redirect_to, Page};
-use frontend::theme::{apply_theme_mode, theme_mode_from_storage, ThemeMode};
+use frontend::routing::{current_path, Page};
+use frontend::theme::{apply_theme_mode, theme_mode_from_storage};
 use gloo_net::http::Request;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-
-#[component]
-fn AppHeader(
-    name: String,
-    email: String,
-    menu_open: ReadSignal<bool>,
-    set_menu_open: WriteSignal<bool>,
-) -> impl IntoView {
-    view! {
-        <header class="app-header">
-            <div class="header-left">
-                <button
-                    class="icon-button"
-                    on:click=move |_| {
-                        let new_value = !menu_open.get();
-
-                        set_menu_open.set(new_value);
-                        save_menu_open(new_value);
-                    }
-                >
-                    "☰"
-                </button>
-
-                <h1>"Homelab Dashboard"</h1>
-            </div>
-
-            <div class="header-right">
-                <span class="user-label">
-                    {name}
-                    " <"
-                    {email}
-                    ">"
-                </span>
-
-                <button
-                    class="secondary-button"
-                    on:click=move |_| redirect_to("/auth/logout")
-                >
-                    "Logout"
-                </button>
-            </div>
-        </header>
-    }
-}
-
-#[component]
-fn MenuItem(
-    label: &'static str,
-    target: Page,
-    current_page: ReadSignal<Page>,
-    set_current_page: WriteSignal<Page>,
-) -> impl IntoView {
-    view! {
-        <button
-            class=move || {
-                if current_page.get() == target {
-                    "menu-item active"
-                } else {
-                    "menu-item"
-                }
-            }
-            on:click=move |_| {
-                set_current_page.set(target);
-                push_path(target.path());
-            }
-        >
-            {label}
-        </button>
-    }
-}
-
-#[component]
-fn ThemeSelector(
-    theme_mode: ReadSignal<ThemeMode>,
-    set_theme_mode: WriteSignal<ThemeMode>,
-) -> impl IntoView {
-    view! {
-        <div class="theme-selector">
-            <button
-                class=move || if theme_mode.get() == ThemeMode::System { "theme-button active" } else { "theme-button" }
-                on:click=move |_| {
-                    set_theme_mode.set(ThemeMode::System);
-                    apply_theme_mode(ThemeMode::System);
-                }
-                title="Follow system theme"
-            >
-                "AUTO"
-            </button>
-
-            <button
-                class=move || if theme_mode.get() == ThemeMode::Light { "theme-button active" } else { "theme-button" }
-                on:click=move |_| {
-                    set_theme_mode.set(ThemeMode::Light);
-                    apply_theme_mode(ThemeMode::Light);
-                }
-                title="Use light theme"
-            >
-                "LIGHT"
-            </button>
-
-            <button
-                class=move || if theme_mode.get() == ThemeMode::Dark { "theme-button active" } else { "theme-button" }
-                on:click=move |_| {
-                    set_theme_mode.set(ThemeMode::Dark);
-                    apply_theme_mode(ThemeMode::Dark);
-                }
-                title="Use dark theme"
-            >
-                "DARK"
-            </button>
-        </div>
-    }
-}
-
-#[component]
-fn SideMenu(
-    menu_open: ReadSignal<bool>,
-    current_page: ReadSignal<Page>,
-    set_current_page: WriteSignal<Page>,
-    theme_mode: ReadSignal<ThemeMode>,
-    set_theme_mode: WriteSignal<ThemeMode>,
-) -> impl IntoView {
-    view! {
-        <aside class=move || {
-            if menu_open.get() {
-                "side-menu open"
-            } else {
-                "side-menu closed"
-            }
-        }>
-            <nav>
-                <MenuItem label="Overview" target=Page::Overview current_page=current_page set_current_page=set_current_page />
-                <MenuItem label="Hosts" target=Page::Hosts current_page=current_page set_current_page=set_current_page />
-                <MenuItem label="NixOS Generations" target=Page::Generations current_page=current_page set_current_page=set_current_page />
-                <MenuItem label="Uptime" target=Page::Uptime current_page=current_page set_current_page=set_current_page />
-            </nav>
-
-            <ThemeSelector
-                theme_mode=theme_mode
-                set_theme_mode=set_theme_mode
-            />
-        </aside>
-    }
-}
 
 #[component]
 fn HostsPage() -> impl IntoView {
