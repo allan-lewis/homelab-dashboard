@@ -2,33 +2,16 @@ mod frontend;
 
 use frontend::components::app_header::AppHeader;
 use frontend::components::side_menu::SideMenu;
+use frontend::current_page::CurrentPage;
 use frontend::menu_state::{menu_open_from_storage};
 use frontend::models::{AuthState, User};
-use frontend::pages::generations::GenerationsPage;
-use frontend::pages::hosts::HostsPage;
 use frontend::pages::loading::LoadingPage;
 use frontend::pages::login::LoginPage;
-use frontend::pages::overview::OverviewPage;
-use frontend::pages::uptime::UptimePage;
 use frontend::routing::{current_path, Page};
 use frontend::theme::{apply_theme_mode, theme_mode_from_storage};
 use gloo_net::http::Request;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
-
-#[component]
-fn CurrentPage(current_page: ReadSignal<Page>, name: String) -> impl IntoView {
-    view! {
-        {move || {
-            match current_page.get() {
-                Page::Overview => view! { <OverviewPage name=name.clone() /> }.into_any(),
-                Page::Hosts => view! { <HostsPage /> }.into_any(),
-                Page::Generations => view! { <GenerationsPage /> }.into_any(),
-                Page::Uptime => view! { <UptimePage /> }.into_any(),
-            }
-        }}
-    }
-}
 
 #[component]
 fn AppShell(

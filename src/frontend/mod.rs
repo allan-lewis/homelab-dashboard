@@ -1,4 +1,5 @@
 pub mod components;
+pub mod current_page;
 pub mod menu_state;
 pub mod models;
 pub mod pages;
