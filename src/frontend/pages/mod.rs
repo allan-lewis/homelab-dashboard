@@ -1,3 +1,4 @@
+pub mod hosts;
 pub mod loading;
 pub mod login;
 pub mod overview;
