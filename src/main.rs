@@ -1,219 +1,18 @@
+mod frontend;
+
+use frontend::menu_state::{menu_open_from_storage, save_menu_open};
+use frontend::models::{AuthState, HostState, HostStatus, User};
+use frontend::pages::generations::GenerationsPage;
+use frontend::pages::loading::LoadingPage;
+use frontend::pages::login::LoginPage;
+use frontend::pages::overview::OverviewPage;
+use frontend::pages::uptime::UptimePage;
+use frontend::routing::{current_path, push_path, redirect_to, Page};
+use frontend::theme::{apply_theme_mode, theme_mode_from_storage, ThemeMode};
 use gloo_net::http::Request;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
-use leptos::wasm_bindgen::JsValue;
-use serde::Deserialize;
 use wasm_bindgen_futures::spawn_local;
-
-// #[derive(Clone, Debug, Deserialize)]
-// struct HostUpStatus {
-//     instance: String,
-//     job: String,
-//     target: String,
-//     // timestamp: f64,
-//     up: bool,
-// }
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum HostState {
-    Up,
-    Down,
-    Unknown,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct HostStatus {
-    hostname: String,
-    persona: String,
-    ip_address: String,
-    status: HostState,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct User {
-    name: String,
-    email: String,
-}
-
-#[derive(Clone, Debug)]
-enum AuthState {
-    Loading,
-    Anonymous,
-    Authenticated(User),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ThemeMode {
-    System,
-    Light,
-    Dark,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Page {
-    Overview,
-    Hosts,
-    Generations,
-    Uptime,
-}
-
-fn redirect_to(path: &str) {
-    let window = web_sys::window().expect("missing browser window");
-
-    window
-        .location()
-        .set_href(path)
-        .expect("failed to redirect");
-}
-
-impl Page {
-    fn path(self) -> &'static str {
-        match self {
-            Page::Overview => "/",
-            Page::Hosts => "/hosts",
-            Page::Generations => "/generations",
-            Page::Uptime => "/uptime",
-        }
-    }
-
-    fn from_path(path: &str) -> Self {
-        match path {
-            "/hosts" => Page::Hosts,
-            "/generations" => Page::Generations,
-            "/uptime" => Page::Uptime,
-            _ => Page::Overview,
-        }
-    }
-}
-
-fn current_path() -> String {
-    web_sys::window()
-        .expect("missing window")
-        .location()
-        .pathname()
-        .unwrap_or_else(|_| "/".to_string())
-}
-
-fn menu_open_from_storage() -> bool {
-    let Some(window) = web_sys::window() else {
-        return true;
-    };
-
-    let Ok(Some(storage)) = window.local_storage() else {
-        return true;
-    };
-
-    match storage.get_item("menu-open").ok().flatten().as_deref() {
-        Some("false") => false,
-        _ => true,
-    }
-}
-
-fn save_menu_open(menu_open: bool) {
-    let Some(window) = web_sys::window() else {
-        return;
-    };
-
-    let Ok(Some(storage)) = window.local_storage() else {
-        return;
-    };
-
-    let _ = storage.set_item("menu-open", if menu_open { "true" } else { "false" });
-}
-
-fn theme_mode_from_storage() -> ThemeMode {
-    let Some(window) = web_sys::window() else {
-        return ThemeMode::System;
-    };
-
-    let Ok(Some(storage)) = window.local_storage() else {
-        return ThemeMode::System;
-    };
-
-    match storage.get_item("theme-mode").ok().flatten().as_deref() {
-        Some("light") => ThemeMode::Light,
-        Some("dark") => ThemeMode::Dark,
-        _ => ThemeMode::System,
-    }
-}
-
-fn theme_mode_to_storage_value(theme_mode: ThemeMode) -> &'static str {
-    match theme_mode {
-        ThemeMode::System => "system",
-        ThemeMode::Light => "light",
-        ThemeMode::Dark => "dark",
-    }
-}
-
-fn apply_theme_mode(theme_mode: ThemeMode) {
-    let Some(window) = web_sys::window() else {
-        return;
-    };
-
-    let Some(document) = window.document() else {
-        return;
-    };
-
-    let Some(root) = document.document_element() else {
-        return;
-    };
-
-    root.set_attribute("data-theme", theme_mode_to_storage_value(theme_mode))
-        .expect("failed to set data-theme");
-
-    if let Ok(Some(storage)) = window.local_storage() {
-        storage
-            .set_item("theme-mode", theme_mode_to_storage_value(theme_mode))
-            .expect("failed to save theme mode");
-    }
-}
-
-fn push_path(path: &str) {
-    let window = web_sys::window().expect("missing window");
-    window
-        .history()
-        .expect("missing history")
-        .push_state_with_url(&JsValue::NULL, "", Some(path))
-        .expect("failed to push history state");
-}
-
-#[component]
-fn LoadingPage() -> impl IntoView {
-    view! {
-        <main class="login-page">
-            <p>"Loading..."</p>
-        </main>
-    }
-}
-
-#[component]
-fn LoginPage() -> impl IntoView {
-    view! {
-        <main class="login-page">
-            <div class="login-card">
-                <h1>"Allan's Home Lab Dashboard"</h1>
-
-                <p>
-                    "Sign in with Authentik to continue."
-                </p>
-
-                <button
-                    class="primary-button login-button"
-                    on:click=move |_| redirect_to("/auth/login")
-                >
-                    <img
-                        class="authentik-logo"
-                        src="/authentik.png"
-                        alt="Authentik"
-                    />
-
-                    <span>"Login with Authentik"</span>
-                </button>
-            </div>
-        </main>
-    }
-}
 
 #[component]
 fn AppHeader(
@@ -360,17 +159,6 @@ fn SideMenu(
 }
 
 #[component]
-fn OverviewPage(name: String) -> impl IntoView {
-    view! {
-        <section class="page-content">
-            <h2>"Overview"</h2>
-            <p>"Welcome " {name}</p>
-            <p>"This will show high-level fleet status: host count, unhealthy hosts, stale check-ins, and recent changes."</p>
-        </section>
-    }
-}
-
-#[component]
 fn HostsPage() -> impl IntoView {
     let (hosts, set_hosts) = signal(Vec::<HostStatus>::new());
     let (loaded, set_loaded) = signal(false);
@@ -443,26 +231,6 @@ fn HostsPage() -> impl IntoView {
                     }.into_any()
                 }
             }}
-        </section>
-    }
-}
-
-#[component]
-fn GenerationsPage() -> impl IntoView {
-    view! {
-        <section class="page-content">
-            <h2>"NixOS Generations"</h2>
-            <p>"This page will compare booted/current NixOS generations across hosts and flag mismatches."</p>
-        </section>
-    }
-}
-
-#[component]
-fn UptimePage() -> impl IntoView {
-    view! {
-        <section class="page-content">
-            <h2>"Uptime"</h2>
-            <p>"This page will show uptime, reboot history, and hosts that may need attention after upgrades."</p>
         </section>
     }
 }
