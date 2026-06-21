@@ -22,6 +22,7 @@ pub fn SideMenu(
         }>
             <nav>
                 <MenuItem label="Overview" target=Page::Overview current_page=current_page set_current_page=set_current_page />
+                <MenuItem label="Alerts" target=Page::Alerts current_page=current_page set_current_page=set_current_page />
                 <MenuItem label="Hosts" target=Page::Hosts current_page=current_page set_current_page=set_current_page />
                 <MenuItem label="NixOS Generations" target=Page::Generations current_page=current_page set_current_page=set_current_page />
                 <MenuItem label="Uptime" target=Page::Uptime current_page=current_page set_current_page=set_current_page />

@@ -1,3 +1,4 @@
+pub mod alerts;
 pub mod hosts;
 pub mod loading;
 pub mod login;

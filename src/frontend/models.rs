@@ -1,6 +1,14 @@
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct FiringAlert {
+    pub alertname: String,
+    pub rulegroup: String,
+    pub severity: String,
+    pub instance: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HostState {
     Up,
