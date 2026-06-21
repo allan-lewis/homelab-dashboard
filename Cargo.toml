@@ -22,6 +22,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-net = "0.6"
 gloo-timers = { version = "0.3", features = ["futures"] }
+js-sys = "0.3"
 leptos = { version = "0.8.19", features = ["csr"] }
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [

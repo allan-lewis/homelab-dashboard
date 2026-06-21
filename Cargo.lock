@@ -971,6 +971,7 @@ dependencies = [
  "axum",
  "gloo-net",
  "gloo-timers",
+ "js-sys",
  "leptos",
  "openidconnect",
  "reqwest",

@@ -40,7 +40,6 @@ pub fn AppShell(
 
                 <CurrentPage
                     current_page=current_page
-                    name=name
                 />
             </div>
         </main>

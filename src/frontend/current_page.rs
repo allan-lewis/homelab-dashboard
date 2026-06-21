@@ -8,11 +8,11 @@ use crate::frontend::pages::uptime::UptimePage;
 use crate::frontend::routing::Page;
 
 #[component]
-pub fn CurrentPage(current_page: ReadSignal<Page>, name: String) -> impl IntoView {
+pub fn CurrentPage(current_page: ReadSignal<Page>) -> impl IntoView {
     view! {
         {move || {
             match current_page.get() {
-                Page::Overview => view! { <OverviewPage name=name.clone() /> }.into_any(),
+                Page::Overview => view! { <OverviewPage /> }.into_any(),
                 Page::Alerts => view! { <AlertsPage /> }.into_any(),
                 Page::Hosts => view! { <HostsPage /> }.into_any(),
                 Page::Generations => view! { <GenerationsPage /> }.into_any(),
