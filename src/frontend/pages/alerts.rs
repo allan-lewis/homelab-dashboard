@@ -52,7 +52,7 @@ pub fn AlertsPage() -> impl IntoView {
                                     .map(|alert| {
                                         let severity_class = match alert.severity.as_str() {
                                             "critical" => "status-pill down",
-                                            "info" => "status-pill unknown",
+                                            "info" => "status-pill info",
                                             _ => "status-pill unknown",
                                         };
 

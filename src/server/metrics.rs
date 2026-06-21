@@ -1,5 +1,5 @@
 use super::{
-    models::{FiringAlert, GatusHostStatus, HostUpStatus, PrometheusQueryResponse},
+    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HostUpStatus, PrometheusQueryResponse},
     util::hostname_from_name,
 };
 
@@ -179,4 +179,43 @@ pub async fn fetch_prometheus_up(
     });
 
     Ok(statuses)
+}
+
+pub async fn fetch_certificate_expiries(
+    prometheus_url: String,
+    client: reqwest::Client,
+) -> Result<Vec<CertificateExpiry>, String> {
+    let response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", "gatus_results_certificate_expiration_seconds")])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
+
+    let prometheus_response = response
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
+
+    let mut expiries = prometheus_response
+        .data
+        .result
+        .into_iter()
+        .map(|result| CertificateExpiry {
+            key: result.metric.get("key").cloned().unwrap_or_default(),
+            name: result.metric.get("name").cloned().unwrap_or_default(),
+            group: result.metric.get("group").cloned().unwrap_or_default(),
+            instance: result.metric.get("instance").cloned().unwrap_or_default(),
+            target: result.metric.get("target").cloned().unwrap_or_default(),
+            cert_expiry_seconds: result.value.1.parse::<f64>().unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+
+    expiries.sort_by(|a, b| {
+        a.cert_expiry_seconds
+            .partial_cmp(&b.cert_expiry_seconds)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(expiries)
 }

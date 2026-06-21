@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::frontend::pages::alerts::AlertsPage;
+use crate::frontend::pages::certificates::CertificatesPage;
 use crate::frontend::pages::generations::GenerationsPage;
 use crate::frontend::pages::hosts::HostsPage;
 use crate::frontend::pages::overview::OverviewPage;
@@ -14,6 +15,7 @@ pub fn CurrentPage(current_page: ReadSignal<Page>) -> impl IntoView {
             match current_page.get() {
                 Page::Overview => view! { <OverviewPage /> }.into_any(),
                 Page::Alerts => view! { <AlertsPage /> }.into_any(),
+                Page::Certificates => view! { <CertificatesPage /> }.into_any(),
                 Page::Hosts => view! { <HostsPage /> }.into_any(),
                 Page::Generations => view! { <GenerationsPage /> }.into_any(),
                 Page::Uptime => view! { <UptimePage /> }.into_any(),

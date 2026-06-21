@@ -3,7 +3,7 @@ use tower_sessions::Session;
 
 use super::{
     AppState,
-    models::{FiringAlert, HostState, HostStatus, HostUpStatus, User},
+    models::{CertificateExpiry, FiringAlert, HostState, HostStatus, HostUpStatus, User},
     util::{ip_address_for_host, persona_from_name},
 };
 
@@ -48,5 +48,10 @@ pub async fn prometheus_up(State(state): State<AppState>) -> Json<Vec<HostUpStat
 pub async fn alerts(State(state): State<AppState>) -> Json<Vec<FiringAlert>> {
     let alerts= state.firing_alerts_cache.read().await.clone();
     Json(alerts)
+}
+
+pub async fn certificates(State(state): State<AppState>) -> Json<Vec<CertificateExpiry>> {
+    let certificates= state.certificate_expiry_cache.read().await.clone();
+    Json(certificates)
 }
 

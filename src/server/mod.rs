@@ -9,8 +9,8 @@ mod util;
 use axum::{Router, routing::get};
 use cache::start_polling;
 use config::AppConfig;
-use metrics::{fetch_firing_alerts, fetch_gatus_hosts, fetch_prometheus_up};
-use models::{FiringAlert, GatusHostStatus, HostUpStatus};
+use metrics::{fetch_certificate_expiries, fetch_firing_alerts, fetch_gatus_hosts, fetch_prometheus_up};
+use models::{CertificateExpiry, FiringAlert, GatusHostStatus, HostUpStatus};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::RwLock;
@@ -23,6 +23,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Clone)]
 struct AppState {
     config: AppConfig,
+    certificate_expiry_cache: Arc<RwLock<Vec<CertificateExpiry>>>,
     firing_alerts_cache: Arc<RwLock<Vec<FiringAlert>>>,
     host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
     gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
@@ -44,6 +45,7 @@ fn router(state: AppState) -> Router {
         .route("/api/prometheus/up", get(handlers::prometheus_up))
         .route("/api/hosts", get(handlers::hosts))
         .route("/api/alerts", get(handlers::alerts))
+        .route("/api/certificates", get(handlers::certificates))
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .with_state(state)
         .layer(session_layer)
@@ -94,9 +96,17 @@ pub async fn run() {
         "loaded server config"
     );
 
+    let certificate_expiry_cache = Arc::new(RwLock::new(Vec::<CertificateExpiry>::new()));
     let firing_alerts_cache = Arc::new(RwLock::new(Vec::<FiringAlert>::new()));
     let host_up_cache = Arc::new(RwLock::new(Vec::<HostUpStatus>::new()));
     let gatus_host_cache = Arc::new(RwLock::new(Vec::<GatusHostStatus>::new()));
+
+    start_polling(
+        "certificate_expiry",
+        config.prometheus.url.clone(),
+        certificate_expiry_cache.clone(),
+        fetch_certificate_expiries,
+    );
 
     start_polling(
         "prometheus_up",
@@ -121,6 +131,7 @@ pub async fn run() {
 
     let state = AppState {
         config,
+        certificate_expiry_cache,
         firing_alerts_cache,
         host_up_cache,
         gatus_host_cache,

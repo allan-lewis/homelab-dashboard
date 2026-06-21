@@ -1,6 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize)]
+pub struct CertificateExpiry {
+    pub key: String,
+    pub name: String,
+    pub group: String,
+    pub instance: String,
+    pub target: String,
+    pub cert_expiry_seconds: f64,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct FiringAlert {
     pub key: String,
     pub alertname: String,

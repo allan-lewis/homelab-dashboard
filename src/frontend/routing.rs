@@ -4,6 +4,7 @@ use leptos::wasm_bindgen::JsValue;
 pub enum Page {
     Overview,
     Alerts,
+    Certificates,
     Hosts,
     Generations,
     Uptime,
@@ -23,6 +24,7 @@ impl Page {
         match self {
             Page::Overview => "/",
             Page::Alerts => "/alerts",
+            Page::Certificates => "/certificates",
             Page::Hosts => "/hosts",
             Page::Generations => "/generations",
             Page::Uptime => "/uptime",
@@ -32,6 +34,7 @@ impl Page {
     pub fn from_path(path: &str) -> Self {
         match path {
             "/alerts" => Page::Alerts,
+            "/certificates" => Page::Certificates,
             "/hosts" => Page::Hosts,
             "/generations" => Page::Generations,
             "/uptime" => Page::Uptime,

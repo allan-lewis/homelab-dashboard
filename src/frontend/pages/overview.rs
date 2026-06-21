@@ -190,7 +190,7 @@ pub fn OverviewPage() -> impl IntoView {
                                                 <SummaryLine
                                                     label="Info alerts firing"
                                                     count=info_count
-                                                    pill_class="status-pill unknown"
+                                                    pill_class="status-pill info"
                                                 />
                                             }.into_any()
                                         } else {
