@@ -1,35 +1,11 @@
-use gloo_net::http::Request;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::frontend::certificates::{
+    expiry_class, expiry_label, fetch_certificates,
+};
 use crate::frontend::models::CertificateExpiry;
-
-fn days_until_expiry(seconds: f64) -> i64 {
-    (seconds / 86_400.0).floor() as i64
-}
-
-fn expiry_label(seconds: f64) -> String {
-    let days = days_until_expiry(seconds);
-
-    if days == 1 {
-        "1 day".to_string()
-    } else {
-        format!("{days} days")
-    }
-}
-
-fn expiry_class(seconds: f64) -> &'static str {
-    let days = days_until_expiry(seconds);
-
-    if days <= 14 {
-        "status-pill down"
-    } else if days <= 40 {
-        "status-pill warning"
-    } else {
-        "status-pill up"
-    }
-}
 
 #[component]
 pub fn CertificatesPage() -> impl IntoView {
@@ -38,20 +14,7 @@ pub fn CertificatesPage() -> impl IntoView {
 
     spawn_local(async move {
         loop {
-            let mut loaded_certificates = match Request::get("/api/certificates").send().await {
-                Ok(response) => response
-                    .json::<Vec<CertificateExpiry>>()
-                    .await
-                    .unwrap_or_default(),
-                Err(_) => Vec::new(),
-            };
-
-            loaded_certificates.sort_by(|a, b| {
-                a.cert_expiry_seconds
-                    .partial_cmp(&b.cert_expiry_seconds)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-                    .then_with(|| a.name.cmp(&b.name))
-            });
+            let loaded_certificates = fetch_certificates().await;
 
             set_certificates.set(loaded_certificates);
             set_loaded.set(true);
@@ -85,7 +48,7 @@ pub fn CertificatesPage() -> impl IntoView {
                                     .get()
                                     .into_iter()
                                     .map(|certificate| {
-                                        let expiry_class = expiry_class(certificate.cert_expiry_seconds);
+                                        let expiry_class = expiry_class(&certificate);
                                         let expiry_label = expiry_label(certificate.cert_expiry_seconds);
 
                                         view! {

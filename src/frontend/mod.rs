@@ -1,5 +1,6 @@
 pub mod app;
 pub mod app_shell;
+pub mod certificates;
 pub mod components;
 pub mod current_page;
 pub mod menu_state;

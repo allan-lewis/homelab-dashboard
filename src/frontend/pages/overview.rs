@@ -4,8 +4,25 @@ use js_sys::Date;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::frontend::components::summary_panel::{SummaryPanel};
+use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
+use crate::frontend::certificates::CertificateSummary;
+use crate::frontend::certificates::{certificate_summary_panel, fetch_certificates, summarize_certificates};
 use crate::frontend::components::summary_line::SummaryLine;
-use crate::frontend::models::{FiringAlert, HostState, HostStatus};
+use crate::frontend::models::{CertificateExpiry, FiringAlert, HostState, HostStatus};
+
+fn overview_is_healthy(
+    critical_alerts: usize,
+    warning_alerts: usize,
+    down_hosts: usize,
+    certificate_summary: &CertificateSummary,
+) -> bool {
+    critical_alerts == 0
+        && warning_alerts == 0
+        && down_hosts == 0
+        && certificate_summary.critical_count == 0
+        && certificate_summary.warning_count == 0
+}
 
 fn current_utc_time_string() -> String {
     let now = Date::new_0();
@@ -38,7 +55,22 @@ pub fn OverviewPage() -> impl IntoView {
     let (hosts, set_hosts) = signal(Vec::<HostStatus>::new());
     let (hosts_loaded, set_hosts_loaded) = signal(false);
 
+    let (certificates, set_certificates) = signal(Vec::<CertificateExpiry>::new());
+    let (certificates_loaded, set_certificates_loaded) = signal(false);
+
     let (last_updated, set_last_updated) = signal(None::<String>);
+
+    spawn_local(async move {
+        loop {
+            let loaded_certificates = fetch_certificates().await;
+
+            set_certificates.set(loaded_certificates);
+            set_certificates_loaded.set(true);
+            set_last_updated.set(Some(current_utc_time_string()));
+
+            TimeoutFuture::new(10_000).await;
+        }
+    });
 
     spawn_local(async move {
         loop {
@@ -76,7 +108,7 @@ pub fn OverviewPage() -> impl IntoView {
 
             <div class="overview-hero">
                 {move || {
-                    if !alerts_loaded.get() || !hosts_loaded.get() {
+                    if !alerts_loaded.get() || !hosts_loaded.get() || !certificates_loaded.get() {
                         view! {
                             <p class="overview-summary">
                                 "Loading dashboard summary..."
@@ -100,7 +132,14 @@ pub fn OverviewPage() -> impl IntoView {
                             .iter()
                             .filter(|host| matches!(host.status, HostState::Down))
                             .count();
-if critical_alerts == 0 && warning_alerts == 0 && down_hosts == 0 {
+
+                        let certificate_summary = summarize_certificates(&certificates.get());
+if overview_is_healthy(
+    critical_alerts,
+    warning_alerts,
+    down_hosts,
+    &certificate_summary,
+) {
     view! {
         <p class="overview-summary">
             "All monitored systems look healthy."
@@ -136,7 +175,7 @@ if critical_alerts == 0 && warning_alerts == 0 && down_hosts == 0 {
 
                 <p class="overview-subsummary">
                     {move || {
-                        if !alerts_loaded.get() || !hosts_loaded.get() {
+                        if !alerts_loaded.get() || !hosts_loaded.get() || !certificates_loaded.get() {
                             "Waiting for data...".to_string()
                         } else {
                             let alerts = alerts.get();
@@ -307,6 +346,24 @@ if critical_alerts == 0 && warning_alerts == 0 && down_hosts == 0 {
                                 }.into_any()
                             }
                         }
+                    }}
+                    {move || {
+                        let data = if certificates_loaded.get() {
+                            certificate_summary_panel(&certificates.get())
+                        } else {
+                            SummaryPanelData {
+                                title: "Certificates",
+                                empty_message: "No certificate data found.",
+                                items: Vec::new(),
+                            }
+                        };
+
+                        view! {
+                            <SummaryPanel
+                                loading=!certificates_loaded.get()
+                                data=data
+                            />
+                        }.into_any()
                     }}
                 </section>
             </div>
