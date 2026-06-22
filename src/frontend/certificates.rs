@@ -37,6 +37,20 @@ pub fn certificate_info_lines(certificates: &[CertificateExpiry]) -> Vec<String>
     vec![line]
 }
 
+pub fn certificate_status_lines(certificates: &[CertificateExpiry]) -> Vec<String> {
+    let summary = summarize_certificates(certificates);
+
+    if summary.critical_count == 0 && summary.warning_count == 0 {
+        Vec::new()
+    } else {
+        vec![format!(
+            "{} certificates critical and {} certificates warning.",
+            summary.critical_count,
+            summary.warning_count,
+        )]
+    }
+}
+
 pub async fn fetch_certificates() -> Vec<CertificateExpiry> {
     let mut certificates = match Request::get("/api/certificates").send().await {
         Ok(response) => response
@@ -58,9 +72,9 @@ pub fn days_until_expiry(seconds: f64) -> i64 {
 pub fn certificate_state(certificate: &CertificateExpiry) -> CertificateState {
     let days = days_until_expiry(certificate.cert_expiry_seconds);
 
-    if days <= 40 {
+    if days <= 7 {
         CertificateState::Critical
-    } else if days <= 60 {
+    } else if days <= 14 {
         CertificateState::Warning
     } else {
         CertificateState::Healthy

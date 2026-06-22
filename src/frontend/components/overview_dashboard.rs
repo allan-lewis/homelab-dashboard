@@ -8,11 +8,15 @@ use crate::frontend::components::overview_status_card::OverviewStatusCard;
 use crate::frontend::components::summary_grid::SummaryGrid;
 use crate::frontend::models::{CertificateExpiry, FiringAlert, HostStatus};
 use crate::frontend::components::summary_panel::SummaryPanelState;
-use crate::frontend::alerts::{alert_info_lines, alert_summary_panel, fetch_alerts};
-use crate::frontend::certificates::{
-    certificate_info_lines, certificate_summary_panel, fetch_certificates,
+use crate::frontend::alerts::{
+    alert_info_lines, alert_status_lines, alert_summary_panel, fetch_alerts,
 };
-use crate::frontend::hosts::{fetch_hosts, host_info_lines, host_summary_panel};
+use crate::frontend::certificates::{
+    certificate_info_lines, certificate_status_lines, certificate_summary_panel, fetch_certificates,
+};
+use crate::frontend::hosts::{
+    fetch_hosts, host_info_lines, host_status_lines, host_summary_panel,
+};
 
 fn current_utc_time_string() -> String {
     let now = Date::new_0();
@@ -88,7 +92,32 @@ pub fn OverviewDashboard() -> impl IntoView {
 
     view! {
         <div class="overview-top-grid">
-            <OverviewStatusCard />
+            {move || {
+                let mut status_lines = Vec::new();
+
+                if alerts_loaded.get() {
+                    status_lines.extend(alert_status_lines(&alerts.get()));
+                }
+
+                if hosts_loaded.get() {
+                    status_lines.extend(host_status_lines(&hosts.get()));
+                }
+
+                if certificates_loaded.get() {
+                    status_lines.extend(certificate_status_lines(&certificates.get()));
+                }
+
+                let loading = !alerts_loaded.get()
+                    || !hosts_loaded.get()
+                    || !certificates_loaded.get();
+
+                view! {
+                    <OverviewStatusCard
+                        loading=loading
+                        lines=status_lines
+                    />
+                }
+            }}
             {move || {
                 let mut info_lines = Vec::new();
 

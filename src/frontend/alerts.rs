@@ -12,6 +12,30 @@ pub fn alert_info_lines(alerts: &[FiringAlert]) -> Vec<String> {
     vec![format!("{info_count} info alerts active.")]
 }
 
+pub fn alert_status_lines(alerts: &[FiringAlert]) -> Vec<String> {
+    let critical_count = alerts
+        .iter()
+        .filter(|alert| alert.severity == "critical")
+        .count();
+
+    let warning_count = alerts
+        .iter()
+        .filter(|alert| alert.severity == "warning")
+        .count();
+
+    let mut lines = Vec::new();
+
+    if critical_count > 0 {
+        lines.push(format!("{critical_count} critical alerts firing."));
+    }
+
+    if warning_count > 0 {
+        lines.push(format!("{warning_count} warning alerts firing."));
+    }
+
+    lines
+}
+
 pub async fn fetch_alerts() -> Vec<FiringAlert> {
     let mut alerts = match Request::get("/api/alerts").send().await {
         Ok(response) => response.json::<Vec<FiringAlert>>().await.unwrap_or_default(),

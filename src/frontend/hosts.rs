@@ -14,6 +14,19 @@ pub fn host_info_lines(hosts: &[HostStatus]) -> Vec<String> {
     vec![format!("{} hosts reporting.", hosts.len())]
 }
 
+pub fn host_status_lines(hosts: &[HostStatus]) -> Vec<String> {
+    let down_count = hosts
+        .iter()
+        .filter(|host| matches!(host.status, HostState::Down))
+        .count();
+
+    if down_count == 0 {
+        Vec::new()
+    } else {
+        vec![format!("{down_count} hosts down.")]
+    }
+}
+
 pub fn host_summary_panel(hosts: &[HostStatus]) -> SummaryPanelData {
     let down_count = hosts
         .iter()
