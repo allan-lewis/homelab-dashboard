@@ -91,12 +91,17 @@ pub fn OverviewPage() -> impl IntoView {
                             .filter(|alert| alert.severity == "critical")
                             .count();
 
+                        let warning_alerts = alerts
+                            .iter()
+                            .filter(|alert| alert.severity == "warning")
+                            .count();
+
                         let down_hosts = hosts
                             .iter()
                             .filter(|host| matches!(host.status, HostState::Down))
                             .count();
 
-                        if critical_alerts == 0 && down_hosts == 0 {
+                        if critical_alerts == 0 && warning_alerts == 0 && down_hosts == 0 {
                             view! {
                                 <p class="overview-summary">
                                     "All monitored systems look healthy."
@@ -106,7 +111,9 @@ pub fn OverviewPage() -> impl IntoView {
                             view! {
                                 <p class="overview-summary">
                                     {critical_alerts}
-                                    " critical alerts firing and "
+                                    " critical alerts firing, "
+                                    {warning_alerts}
+                                    " warning alerts firing, and "
                                     {down_hosts}
                                     " hosts down."
                                 </p>
@@ -161,12 +168,17 @@ pub fn OverviewPage() -> impl IntoView {
                                 .filter(|alert| alert.severity == "critical")
                                 .count();
 
+                            let warning_count = alerts
+                                .iter()
+                                .filter(|alert| alert.severity == "warning")
+                                .count();
+
                             let info_count = alerts
                                 .iter()
                                 .filter(|alert| alert.severity == "info")
                                 .count();
 
-                            if critical_count == 0 && info_count == 0 {
+                            if critical_count == 0 && warning_count == 0 && info_count == 0 {
                                 view! {
                                     <p>"No alerts firing."</p>
                                 }.into_any()
@@ -184,7 +196,17 @@ pub fn OverviewPage() -> impl IntoView {
                                         } else {
                                             view! {}.into_any()
                                         }}
-
+                                        {if warning_count > 0 {
+                                            view! {
+                                                <SummaryLine
+                                                    label="Warning alerts firing"
+                                                    count=warning_count
+                                                    pill_class="status-pill warning"
+                                                />
+                                            }.into_any()
+                                        } else {
+                                            view! {}.into_any()
+                                        }}
                                         {if info_count > 0 {
                                             view! {
                                                 <SummaryLine
