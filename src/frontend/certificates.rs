@@ -19,6 +19,24 @@ pub struct CertificateSummary {
     pub next_expiry_days: Option<i64>,
 }
 
+pub fn certificate_info_lines(certificates: &[CertificateExpiry]) -> Vec<String> {
+    let summary = summarize_certificates(certificates);
+
+    let line = match summary.next_expiry_days {
+        Some(days) => format!(
+            "{} certificates monitored, next expiry in {} days.",
+            summary.total_count,
+            days,
+        ),
+        None => format!(
+            "{} certificates monitored.",
+            summary.total_count,
+        ),
+    };
+
+    vec![line]
+}
+
 pub async fn fetch_certificates() -> Vec<CertificateExpiry> {
     let mut certificates = match Request::get("/api/certificates").send().await {
         Ok(response) => response

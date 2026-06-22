@@ -10,6 +10,10 @@ pub async fn fetch_hosts() -> Vec<HostStatus> {
     }
 }
 
+pub fn host_info_lines(hosts: &[HostStatus]) -> Vec<String> {
+    vec![format!("{} hosts reporting.", hosts.len())]
+}
+
 pub fn host_summary_panel(hosts: &[HostStatus]) -> SummaryPanelData {
     let down_count = hosts
         .iter()

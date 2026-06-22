@@ -1,5 +1,6 @@
 pub mod app_header;
 pub mod menu_item;
+pub mod overview_dashboard;
 pub mod overview_status_card;
 pub mod overview_info_card;
 pub mod theme_selector;

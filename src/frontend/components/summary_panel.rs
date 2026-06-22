@@ -16,6 +16,12 @@ pub struct SummaryPanelItem {
     pub pill_class: &'static str,
 }
 
+#[derive(Clone, Debug)]
+pub struct SummaryPanelState {
+    pub loading: bool,
+    pub data: SummaryPanelData,
+}
+
 #[component]
 pub fn SummaryPanel(
     loading: bool,

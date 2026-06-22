@@ -5,15 +5,6 @@ use wasm_bindgen_futures::spawn_local;
 use crate::frontend::alerts::fetch_alerts;
 use crate::frontend::models::FiringAlert;
 
-fn severity_rank(severity: &str) -> u8 {
-    match severity {
-        "critical" => 0,
-        "warning" => 1,
-        "info" => 2,
-        _ => 3,
-    }
-}
-
 #[component]
 pub fn AlertsPage() -> impl IntoView {
     let (alerts, set_alerts) = signal(Vec::<FiringAlert>::new());

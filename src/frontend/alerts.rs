@@ -3,6 +3,15 @@ use gloo_net::http::Request;
 use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
 use crate::frontend::models::FiringAlert;
 
+pub fn alert_info_lines(alerts: &[FiringAlert]) -> Vec<String> {
+    let info_count = alerts
+        .iter()
+        .filter(|alert| alert.severity == "info")
+        .count();
+
+    vec![format!("{info_count} info alerts active.")]
+}
+
 pub async fn fetch_alerts() -> Vec<FiringAlert> {
     let mut alerts = match Request::get("/api/alerts").send().await {
         Ok(response) => response.json::<Vec<FiringAlert>>().await.unwrap_or_default(),
