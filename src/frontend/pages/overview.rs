@@ -100,25 +100,37 @@ pub fn OverviewPage() -> impl IntoView {
                             .iter()
                             .filter(|host| matches!(host.status, HostState::Down))
                             .count();
+if critical_alerts == 0 && warning_alerts == 0 && down_hosts == 0 {
+    view! {
+        <p class="overview-summary">
+            "All monitored systems look healthy."
+        </p>
+    }.into_any()
+} else {
+    view! {
+        <div>
+            <div class="overview-status-list">
+                {if critical_alerts > 0 || warning_alerts > 0 {
+                    view! {
+                        <div class="overview-status-line">
+                            {critical_alerts}
+                            " critical alerts firing and "
+                            {warning_alerts}
+                            " warning alerts firing."
+                        </div>
+                    }.into_any()
+                } else {
+                    view! {}.into_any()
+                }}
 
-                        if critical_alerts == 0 && warning_alerts == 0 && down_hosts == 0 {
-                            view! {
-                                <p class="overview-summary">
-                                    "All monitored systems look healthy."
-                                </p>
-                            }.into_any()
-                        } else {
-                            view! {
-                                <p class="overview-summary">
-                                    {critical_alerts}
-                                    " critical alerts firing, "
-                                    {warning_alerts}
-                                    " warning alerts firing, and "
-                                    {down_hosts}
-                                    " hosts down."
-                                </p>
-                            }.into_any()
-                        }
+                        <div class="overview-status-line">
+                            {down_hosts}
+                            " hosts down."
+                        </div>
+            </div>
+        </div>
+    }.into_any()
+}
                     }
                 }}
 
