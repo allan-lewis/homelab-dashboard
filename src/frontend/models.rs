@@ -4,8 +4,6 @@ use serde::Deserialize;
 pub struct CertificateExpiry {
     pub name: String,
     pub group: String,
-    pub instance: String,
-    pub target: String,
     pub cert_expiry_seconds: f64,
 }
 

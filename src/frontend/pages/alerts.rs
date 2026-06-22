@@ -5,6 +5,15 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::frontend::models::FiringAlert;
 
+fn severity_rank(severity: &str) -> u8 {
+    match severity {
+        "critical" => 0,
+        "warning" => 1,
+        "info" => 2,
+        _ => 3,
+    }
+}
+
 #[component]
 pub fn AlertsPage() -> impl IntoView {
     let (alerts, set_alerts) = signal(Vec::<FiringAlert>::new());
@@ -12,10 +21,18 @@ pub fn AlertsPage() -> impl IntoView {
 
     spawn_local(async move {
         loop {
-            let loaded_alerts = match Request::get("/api/alerts").send().await {
+            let mut loaded_alerts = match Request::get("/api/alerts").send().await {
                 Ok(response) => response.json::<Vec<FiringAlert>>().await.unwrap_or_default(),
                 Err(_) => Vec::new(),
             };
+
+            loaded_alerts.sort_by(|a, b| {
+                severity_rank(&a.severity)
+                    .cmp(&severity_rank(&b.severity))
+                    .then_with(|| a.alertname.cmp(&b.alertname))
+                    .then_with(|| a.rulegroup.cmp(&b.rulegroup))
+                    .then_with(|| a.instance.cmp(&b.instance))
+            });
 
             set_alerts.set(loaded_alerts);
             set_loaded.set(true);
@@ -53,6 +70,7 @@ pub fn AlertsPage() -> impl IntoView {
                                         let severity_class = match alert.severity.as_str() {
                                             "critical" => "status-pill down",
                                             "info" => "status-pill info",
+                                            "warning" => "status-pill warning",
                                             _ => "status-pill unknown",
                                         };
 
