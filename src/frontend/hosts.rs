@@ -1,5 +1,14 @@
+use gloo_net::http::Request;
+
 use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
 use crate::frontend::models::{HostState, HostStatus};
+
+pub async fn fetch_hosts() -> Vec<HostStatus> {
+    match Request::get("/api/hosts").send().await {
+        Ok(response) => response.json::<Vec<HostStatus>>().await.unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
 
 pub fn host_summary_panel(hosts: &[HostStatus]) -> SummaryPanelData {
     let down_count = hosts

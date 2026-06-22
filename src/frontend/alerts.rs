@@ -1,5 +1,37 @@
+use gloo_net::http::Request;
+
 use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
 use crate::frontend::models::FiringAlert;
+
+pub async fn fetch_alerts() -> Vec<FiringAlert> {
+    let mut alerts = match Request::get("/api/alerts").send().await {
+        Ok(response) => response.json::<Vec<FiringAlert>>().await.unwrap_or_default(),
+        Err(_) => Vec::new(),
+    };
+
+    sort_alerts(&mut alerts);
+
+    alerts
+}
+
+fn severity_rank(severity: &str) -> u8 {
+    match severity {
+        "critical" => 0,
+        "warning" => 1,
+        "info" => 2,
+        _ => 3,
+    }
+}
+
+pub fn sort_alerts(alerts: &mut [FiringAlert]) {
+    alerts.sort_by(|a, b| {
+        severity_rank(&a.severity)
+            .cmp(&severity_rank(&b.severity))
+            .then_with(|| a.alertname.cmp(&b.alertname))
+            .then_with(|| a.rulegroup.cmp(&b.rulegroup))
+            .then_with(|| a.instance.cmp(&b.instance))
+    });
+}
 
 pub fn alert_summary_panel(alerts: &[FiringAlert]) -> SummaryPanelData {
     let critical_count = alerts

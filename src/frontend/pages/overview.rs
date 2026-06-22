@@ -4,14 +4,14 @@ use js_sys::Date;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::frontend::alerts::alert_summary_panel;
-use crate::frontend::components::summary_panel::{SummaryPanel};
-use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
-use crate::frontend::hosts::host_summary_panel;
+use crate::frontend::alerts::fetch_alerts;
+use crate::frontend::components::overview_info_card::OverviewInfoCard;
+use crate::frontend::components::overview_status_card::OverviewStatusCard;
+use crate::frontend::components::summary_grid::SummaryGrid;
 use crate::frontend::certificates::CertificateSummary;
-use crate::frontend::certificates::{certificate_summary_panel, fetch_certificates, summarize_certificates};
-use crate::frontend::components::summary_line::SummaryLine;
-use crate::frontend::models::{CertificateExpiry, FiringAlert, HostState, HostStatus};
+use crate::frontend::certificates::{fetch_certificates};
+use crate::frontend::hosts::fetch_hosts;
+use crate::frontend::models::{CertificateExpiry, FiringAlert, HostStatus};
 
 fn overview_is_healthy(
     critical_alerts: usize,
@@ -76,10 +76,7 @@ pub fn OverviewPage() -> impl IntoView {
 
     spawn_local(async move {
         loop {
-            let loaded_alerts = match Request::get("/api/alerts").send().await {
-                Ok(response) => response.json::<Vec<FiringAlert>>().await.unwrap_or_default(),
-                Err(_) => Vec::new(),
-            };
+            let loaded_alerts = fetch_alerts().await;
 
             set_alerts.set(loaded_alerts);
             set_alerts_loaded.set(true);
@@ -91,10 +88,7 @@ pub fn OverviewPage() -> impl IntoView {
 
     spawn_local(async move {
         loop {
-            let loaded_hosts = match Request::get("/api/hosts").send().await {
-                Ok(response) => response.json::<Vec<HostStatus>>().await.unwrap_or_default(),
-                Err(_) => Vec::new(),
-            };
+            let loaded_hosts = fetch_hosts().await;
 
             set_hosts.set(loaded_hosts);
             set_hosts_loaded.set(true);
@@ -108,160 +102,19 @@ pub fn OverviewPage() -> impl IntoView {
         <section class="page-content">
             <h2>"Overview"</h2>
 
-            <div class="overview-hero">
-                {move || {
-                    if !alerts_loaded.get() || !hosts_loaded.get() || !certificates_loaded.get() {
-                        view! {
-                            <p class="overview-summary">
-                                "Loading dashboard summary..."
-                            </p>
-                        }.into_any()
-                    } else {
-                        let alerts = alerts.get();
-                        let hosts = hosts.get();
-
-                        let critical_alerts = alerts
-                            .iter()
-                            .filter(|alert| alert.severity == "critical")
-                            .count();
-
-                        let warning_alerts = alerts
-                            .iter()
-                            .filter(|alert| alert.severity == "warning")
-                            .count();
-
-                        let down_hosts = hosts
-                            .iter()
-                            .filter(|host| matches!(host.status, HostState::Down))
-                            .count();
-
-                        let certificate_summary = summarize_certificates(&certificates.get());
-if overview_is_healthy(
-    critical_alerts,
-    warning_alerts,
-    down_hosts,
-    &certificate_summary,
-) {
-    view! {
-        <p class="overview-summary">
-            "All monitored systems look healthy."
-        </p>
-    }.into_any()
-} else {
-    view! {
-        <div>
-            <div class="overview-status-list">
-                {if critical_alerts > 0 || warning_alerts > 0 {
-                    view! {
-                        <div class="overview-status-line">
-                            {critical_alerts}
-                            " critical alerts firing and "
-                            {warning_alerts}
-                            " warning alerts firing."
-                        </div>
-                    }.into_any()
-                } else {
-                    view! {}.into_any()
-                }}
-
-                        <div class="overview-status-line">
-                            {down_hosts}
-                            " hosts down."
-                        </div>
-            </div>
-        </div>
-    }.into_any()
-}
-                    }
-                }}
-
-                <p class="overview-subsummary">
-                    {move || {
-                        if !alerts_loaded.get() || !hosts_loaded.get() || !certificates_loaded.get() {
-                            "Waiting for data...".to_string()
-                        } else {
-                            let alerts = alerts.get();
-                            let hosts = hosts.get();
-
-                            let info_alerts = alerts
-                                .iter()
-                                .filter(|alert| alert.severity == "info")
-                                .count();
-
-                            match last_updated.get() {
-                                Some(updated) => format!(
-                                    "{} info alerts active. {} hosts reporting. Last updated {}.",
-                                    info_alerts,
-                                    hosts.len(),
-                                    updated,
-                                ),
-                                None => format!(
-                                    "{} info alerts active. {} hosts reporting.",
-                                    info_alerts,
-                                    hosts.len(),
-                                ),
-                            }
-                        }
-                    }}
-                </p>
+            <div class="overview-top-grid">
+                <OverviewStatusCard />
+                <OverviewInfoCard />
             </div>
 
-            <div class="summary-grid">
-                    {move || {
-                        let data = if alerts_loaded.get() {
-                            alert_summary_panel(&alerts.get())
-                        } else {
-                            SummaryPanelData {
-                                title: "Alerts",
-                                empty_message: "No alerts firing.",
-                                items: Vec::new(),
-                            }
-                        };
-
-                        view! {
-                            <SummaryPanel
-                                loading=!alerts_loaded.get()
-                                data=data
-                            />
-                        }.into_any()
-                    }}
-                    {move || {
-                        let data = if hosts_loaded.get() {
-                            host_summary_panel(&hosts.get())
-                        } else {
-                            SummaryPanelData {
-                                title: "Hosts",
-                                empty_message: "No hosts found.",
-                                items: Vec::new(),
-                            }
-                        };
-
-                        view! {
-                            <SummaryPanel
-                                loading=!hosts_loaded.get()
-                                data=data
-                            />
-                        }.into_any()
-                    }}
-                    {move || {
-                        let data = if certificates_loaded.get() {
-                            certificate_summary_panel(&certificates.get())
-                        } else {
-                            SummaryPanelData {
-                                title: "Certificates",
-                                empty_message: "No certificate data found.",
-                                items: Vec::new(),
-                            }
-                        };
-
-                        view! {
-                            <SummaryPanel
-                                loading=!certificates_loaded.get()
-                                data=data
-                            />
-                        }.into_any()
-                    }}
-            </div>
+            <SummaryGrid
+                alerts=alerts
+                alerts_loaded=alerts_loaded
+                hosts=hosts
+                hosts_loaded=hosts_loaded
+                certificates=certificates
+                certificates_loaded=certificates_loaded
+            />
         </section>
     }
 }

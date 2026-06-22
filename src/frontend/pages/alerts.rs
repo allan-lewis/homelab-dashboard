@@ -1,8 +1,8 @@
-use gloo_net::http::Request;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::frontend::alerts::fetch_alerts;
 use crate::frontend::models::FiringAlert;
 
 fn severity_rank(severity: &str) -> u8 {
@@ -21,18 +21,7 @@ pub fn AlertsPage() -> impl IntoView {
 
     spawn_local(async move {
         loop {
-            let mut loaded_alerts = match Request::get("/api/alerts").send().await {
-                Ok(response) => response.json::<Vec<FiringAlert>>().await.unwrap_or_default(),
-                Err(_) => Vec::new(),
-            };
-
-            loaded_alerts.sort_by(|a, b| {
-                severity_rank(&a.severity)
-                    .cmp(&severity_rank(&b.severity))
-                    .then_with(|| a.alertname.cmp(&b.alertname))
-                    .then_with(|| a.rulegroup.cmp(&b.rulegroup))
-                    .then_with(|| a.instance.cmp(&b.instance))
-            });
+            let loaded_alerts = fetch_alerts().await;
 
             set_alerts.set(loaded_alerts);
             set_loaded.set(true);

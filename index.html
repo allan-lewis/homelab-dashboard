@@ -384,6 +384,40 @@
       font-weight: 600;
     }
 
+    .overview-top-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+
+    .overview-card {
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1rem;
+    }
+
+    .overview-card h3 {
+      margin-top: 0;
+    }
+
+    .overview-card-primary {
+      margin: 0.5rem 0 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+
+    .overview-card-secondary {
+      margin: 0.35rem 0 0;
+      opacity: 0.75;
+    }
+
+    @media (max-width: 700px) {
+      .overview-top-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
       @media (max-width: 1100px) {
         .summary-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));

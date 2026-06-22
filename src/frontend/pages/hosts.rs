@@ -1,8 +1,8 @@
-use gloo_net::http::Request;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::frontend::hosts::fetch_hosts;
 use crate::frontend::models::{HostState, HostStatus};
 
 #[component]
@@ -12,10 +12,7 @@ pub fn HostsPage() -> impl IntoView {
 
     spawn_local(async move {
         loop {
-            let loaded_hosts = match Request::get("/api/hosts").send().await {
-                Ok(response) => response.json::<Vec<HostStatus>>().await.unwrap_or_default(),
-                Err(_) => Vec::new(),
-            };
+            let loaded_hosts = fetch_hosts().await;
 
             set_hosts.set(loaded_hosts);
             set_loaded.set(true);
