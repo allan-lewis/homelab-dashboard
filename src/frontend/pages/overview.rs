@@ -4,8 +4,10 @@ use js_sys::Date;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::frontend::alerts::alert_summary_panel;
 use crate::frontend::components::summary_panel::{SummaryPanel};
 use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
+use crate::frontend::hosts::host_summary_panel;
 use crate::frontend::certificates::CertificateSummary;
 use crate::frontend::certificates::{certificate_summary_panel, fetch_certificates, summarize_certificates};
 use crate::frontend::components::summary_line::SummaryLine;
@@ -205,147 +207,41 @@ if overview_is_healthy(
             </div>
 
             <div class="summary-grid">
-                <section class="summary-panel">
-                    <h3>"Alerts"</h3>
-
                     {move || {
-                        if !alerts_loaded.get() {
-                            view! { <p>"Loading alerts..."</p> }.into_any()
+                        let data = if alerts_loaded.get() {
+                            alert_summary_panel(&alerts.get())
                         } else {
-                            let alerts = alerts.get();
-
-                            let critical_count = alerts
-                                .iter()
-                                .filter(|alert| alert.severity == "critical")
-                                .count();
-
-                            let warning_count = alerts
-                                .iter()
-                                .filter(|alert| alert.severity == "warning")
-                                .count();
-
-                            let info_count = alerts
-                                .iter()
-                                .filter(|alert| alert.severity == "info")
-                                .count();
-
-                            if critical_count == 0 && warning_count == 0 && info_count == 0 {
-                                view! {
-                                    <p>"No alerts firing."</p>
-                                }.into_any()
-                            } else {
-                                view! {
-                                    <div class="summary-list">
-                                        {if critical_count > 0 {
-                                            view! {
-                                                <SummaryLine
-                                                    label="Critical alerts firing"
-                                                    count=critical_count
-                                                    pill_class="status-pill down"
-                                                />
-                                            }.into_any()
-                                        } else {
-                                            view! {}.into_any()
-                                        }}
-                                        {if warning_count > 0 {
-                                            view! {
-                                                <SummaryLine
-                                                    label="Warning alerts firing"
-                                                    count=warning_count
-                                                    pill_class="status-pill warning"
-                                                />
-                                            }.into_any()
-                                        } else {
-                                            view! {}.into_any()
-                                        }}
-                                        {if info_count > 0 {
-                                            view! {
-                                                <SummaryLine
-                                                    label="Info alerts firing"
-                                                    count=info_count
-                                                    pill_class="status-pill info"
-                                                />
-                                            }.into_any()
-                                        } else {
-                                            view! {}.into_any()
-                                        }}
-                                    </div>
-                                }.into_any()
+                            SummaryPanelData {
+                                title: "Alerts",
+                                empty_message: "No alerts firing.",
+                                items: Vec::new(),
                             }
-                        }
+                        };
+
+                        view! {
+                            <SummaryPanel
+                                loading=!alerts_loaded.get()
+                                data=data
+                            />
+                        }.into_any()
                     }}
-                </section>
-
-                <section class="summary-panel">
-                    <h3>"Hosts"</h3>
-
                     {move || {
-                        if !hosts_loaded.get() {
-                            view! { <p>"Loading hosts..."</p> }.into_any()
+                        let data = if hosts_loaded.get() {
+                            host_summary_panel(&hosts.get())
                         } else {
-                            let hosts = hosts.get();
-
-                            let down_count = hosts
-                                .iter()
-                                .filter(|host| matches!(host.status, HostState::Down))
-                                .count();
-
-                            let unknown_count = hosts
-                                .iter()
-                                .filter(|host| matches!(host.status, HostState::Unknown))
-                                .count();
-
-                            let up_count = hosts
-                                .iter()
-                                .filter(|host| matches!(host.status, HostState::Up))
-                                .count();
-
-                            if down_count == 0 && unknown_count == 0 && up_count == 0 {
-                                view! {
-                                    <p>"No hosts found."</p>
-                                }.into_any()
-                            } else {
-                                view! {
-                                    <div class="summary-list">
-                                        {if down_count > 0 {
-                                            view! {
-                                                <SummaryLine
-                                                    label="Hosts down"
-                                                    count=down_count
-                                                    pill_class="status-pill down"
-                                                />
-                                            }.into_any()
-                                        } else {
-                                            view! {}.into_any()
-                                        }}
-
-                                        {if unknown_count > 0 {
-                                            view! {
-                                                <SummaryLine
-                                                    label="Hosts unknown"
-                                                    count=unknown_count
-                                                    pill_class="status-pill unknown"
-                                                />
-                                            }.into_any()
-                                        } else {
-                                            view! {}.into_any()
-                                        }}
-
-                                        {if up_count > 0 {
-                                            view! {
-                                                <SummaryLine
-                                                    label="Hosts up"
-                                                    count=up_count
-                                                    pill_class="status-pill up"
-                                                />
-                                            }.into_any()
-                                        } else {
-                                            view! {}.into_any()
-                                        }}
-                                    </div>
-                                }.into_any()
+                            SummaryPanelData {
+                                title: "Hosts",
+                                empty_message: "No hosts found.",
+                                items: Vec::new(),
                             }
-                        }
+                        };
+
+                        view! {
+                            <SummaryPanel
+                                loading=!hosts_loaded.get()
+                                data=data
+                            />
+                        }.into_any()
                     }}
                     {move || {
                         let data = if certificates_loaded.get() {
@@ -365,7 +261,6 @@ if overview_is_healthy(
                             />
                         }.into_any()
                     }}
-                </section>
             </div>
         </section>
     }
