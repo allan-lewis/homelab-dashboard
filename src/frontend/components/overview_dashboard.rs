@@ -7,7 +7,7 @@ use crate::frontend::components::overview_info_card::OverviewInfoCard;
 use crate::frontend::components::overview_status_card::OverviewStatusCard;
 use crate::frontend::components::summary_grid::SummaryGrid;
 use crate::frontend::models::{CertificateExpiry, FiringAlert, HostStatus, TaskStatus};
-use crate::frontend::tasks::{fetch_tasks, task_status_lines};
+use crate::frontend::tasks::{fetch_tasks, task_status_lines, task_summary_panel};
 use crate::frontend::components::summary_panel::SummaryPanelState;
 use crate::frontend::alerts::{
     alert_info_lines, alert_status_lines, alert_summary_panel, fetch_alerts,
@@ -181,6 +181,10 @@ pub fn OverviewDashboard() -> impl IntoView {
                 SummaryPanelState {
                     loading: !certificates_loaded.get(),
                     data: certificate_summary_panel(&certificates.get()),
+                },
+                SummaryPanelState {
+                    loading: !tasks_loaded.get(),
+                    data: task_summary_panel(&tasks.get()),
                 },
             ];
 
