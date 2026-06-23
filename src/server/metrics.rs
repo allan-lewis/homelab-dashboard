@@ -1,6 +1,6 @@
 use super::{
-    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HostUpStatus, PrometheusQueryResponse},
-    util::hostname_from_name,
+    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, PrometheusQueryResponse},
+    util::{friendly_name, hostname_from_name},
 };
 
 pub async fn fetch_firing_alerts(
@@ -218,4 +218,43 @@ pub async fn fetch_certificate_expiries(
     });
 
     Ok(expiries)
+}
+
+pub async fn fetch_homelab_tasks(
+    prometheus_url: String,
+    client: reqwest::Client,
+) -> Result<Vec<HomelabTask>, String> {
+    let response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[(
+            "query",
+            r#"(time() - homelab_task_last_success_unix) / on(task) group_left homelab_task_allowed_age_seconds"#,
+        )])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
+
+    let prometheus_response = response
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
+
+    let mut tasks = prometheus_response
+        .data
+        .result
+        .into_iter()
+        .map(|result| {
+            let task = result.metric.get("task").cloned().unwrap_or_default();
+
+            HomelabTask {
+                instance: result.metric.get("instance").cloned().unwrap_or_default(),
+                name: friendly_name(&task),
+                age_ratio: result.value.1.parse::<f64>().unwrap_or_default(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    tasks.sort_by(|a, b| a.instance.cmp(&b.instance).then_with(|| a.name.cmp(&b.name)));
+
+    Ok(tasks)
 }

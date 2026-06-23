@@ -7,6 +7,7 @@ pub enum Page {
     Certificates,
     Hosts,
     Generations,
+    Tasks,
     Uptime,
 }
 
@@ -27,6 +28,7 @@ impl Page {
             Page::Certificates => "/certificates",
             Page::Hosts => "/hosts",
             Page::Generations => "/generations",
+            Page::Tasks => "/tasks",
             Page::Uptime => "/uptime",
         }
     }
@@ -37,6 +39,7 @@ impl Page {
             "/certificates" => Page::Certificates,
             "/hosts" => Page::Hosts,
             "/generations" => Page::Generations,
+            "/tasks" => Page::Tasks,
             "/uptime" => Page::Uptime,
             _ => Page::Overview,
         }

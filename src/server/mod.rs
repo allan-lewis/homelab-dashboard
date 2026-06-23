@@ -9,8 +9,8 @@ mod util;
 use axum::{Router, routing::get};
 use cache::start_polling;
 use config::AppConfig;
-use metrics::{fetch_certificate_expiries, fetch_firing_alerts, fetch_gatus_hosts, fetch_prometheus_up};
-use models::{CertificateExpiry, FiringAlert, GatusHostStatus, HostUpStatus};
+use metrics::{fetch_certificate_expiries, fetch_firing_alerts, fetch_gatus_hosts, fetch_prometheus_up, fetch_homelab_tasks};
+use models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::RwLock;
@@ -27,6 +27,7 @@ struct AppState {
     firing_alerts_cache: Arc<RwLock<Vec<FiringAlert>>>,
     host_up_cache: Arc<RwLock<Vec<HostUpStatus>>>,
     gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
+    homelab_tasks_cache: Arc<RwLock<Vec<HomelabTask>>>,
 }
 
 fn sanitized_uri(uri: &axum::http::Uri) -> String {
@@ -46,6 +47,7 @@ fn router(state: AppState) -> Router {
         .route("/api/hosts", get(handlers::hosts))
         .route("/api/alerts", get(handlers::alerts))
         .route("/api/certificates", get(handlers::certificates))
+        .route("/api/tasks", get(handlers::tasks))
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .with_state(state)
         .layer(session_layer)
@@ -100,6 +102,7 @@ pub async fn run() {
     let firing_alerts_cache = Arc::new(RwLock::new(Vec::<FiringAlert>::new()));
     let host_up_cache = Arc::new(RwLock::new(Vec::<HostUpStatus>::new()));
     let gatus_host_cache = Arc::new(RwLock::new(Vec::<GatusHostStatus>::new()));
+    let homelab_tasks_cache = Arc::new(RwLock::new(Vec::<HomelabTask>::new()));
 
     start_polling(
         "certificate_expiry",
@@ -129,12 +132,20 @@ pub async fn run() {
         fetch_firing_alerts,
     );
 
+    start_polling(
+        "homelab_tasks",
+        config.prometheus.url.clone(),
+        homelab_tasks_cache.clone(),
+        fetch_homelab_tasks,
+    );
+
     let state = AppState {
         config,
         certificate_expiry_cache,
         firing_alerts_cache,
         host_up_cache,
         gatus_host_cache,
+        homelab_tasks_cache
     };
 
     let app = router(state);

@@ -12,13 +12,13 @@ pub fn OverviewInfoCard(
 
             {if loading {
                 view! {
-                    <p class="overview-card-primary">
+                    <p>
                         "Loading overview data..."
                     </p>
                 }.into_any()
             } else {
                 view! {
-                    <div class="overview-info-list">
+                    <div>
                         {lines
                             .into_iter()
                             .map(|line| {

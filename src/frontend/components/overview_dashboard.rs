@@ -6,7 +6,8 @@ use wasm_bindgen_futures::spawn_local;
 use crate::frontend::components::overview_info_card::OverviewInfoCard;
 use crate::frontend::components::overview_status_card::OverviewStatusCard;
 use crate::frontend::components::summary_grid::SummaryGrid;
-use crate::frontend::models::{CertificateExpiry, FiringAlert, HostStatus};
+use crate::frontend::models::{CertificateExpiry, FiringAlert, HostStatus, TaskStatus};
+use crate::frontend::tasks::{fetch_tasks, task_status_lines};
 use crate::frontend::components::summary_panel::SummaryPanelState;
 use crate::frontend::alerts::{
     alert_info_lines, alert_status_lines, alert_summary_panel, fetch_alerts,
@@ -52,6 +53,9 @@ pub fn OverviewDashboard() -> impl IntoView {
     let (hosts, set_hosts) = signal(Vec::<HostStatus>::new());
     let (hosts_loaded, set_hosts_loaded) = signal(false);
 
+    let (tasks, set_tasks) = signal(Vec::<TaskStatus>::new());
+    let (tasks_loaded, set_tasks_loaded) = signal(false);
+
     let (last_updated, set_last_updated) = signal(None::<String>);
 
     spawn_local(async move {
@@ -90,6 +94,18 @@ pub fn OverviewDashboard() -> impl IntoView {
         }
     });
 
+    spawn_local(async move {
+        loop {
+            let loaded_tasks = fetch_tasks().await;
+
+            set_tasks.set(loaded_tasks);
+            set_tasks_loaded.set(true);
+            set_last_updated.set(Some(current_utc_time_string()));
+
+            TimeoutFuture::new(10_000).await;
+        }
+    });
+
     view! {
         <div class="overview-top-grid">
             {move || {
@@ -107,9 +123,14 @@ pub fn OverviewDashboard() -> impl IntoView {
                     status_lines.extend(certificate_status_lines(&certificates.get()));
                 }
 
+                if tasks_loaded.get() {
+                    status_lines.extend(task_status_lines(&tasks.get()));
+                }
+
                 let loading = !alerts_loaded.get()
                     || !hosts_loaded.get()
-                    || !certificates_loaded.get();
+                    || !certificates_loaded.get()
+                    || !tasks_loaded.get();
 
                 view! {
                     <OverviewStatusCard

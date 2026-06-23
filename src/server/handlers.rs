@@ -3,7 +3,7 @@ use tower_sessions::Session;
 
 use super::{
     AppState,
-    models::{CertificateExpiry, FiringAlert, HostState, HostStatus, HostUpStatus, User},
+    models::{CertificateExpiry, FiringAlert, HomelabTask, HostState, HostStatus, HostUpStatus, User},
     util::{ip_address_for_host, persona_from_name},
 };
 
@@ -53,5 +53,10 @@ pub async fn alerts(State(state): State<AppState>) -> Json<Vec<FiringAlert>> {
 pub async fn certificates(State(state): State<AppState>) -> Json<Vec<CertificateExpiry>> {
     let certificates= state.certificate_expiry_cache.read().await.clone();
     Json(certificates)
+}
+
+pub async fn tasks(State(state): State<AppState>) -> Json<Vec<HomelabTask>> {
+    let tasks= state.homelab_tasks_cache.read().await.clone();
+    Json(tasks)
 }
 

@@ -5,6 +5,7 @@ use crate::frontend::pages::certificates::CertificatesPage;
 use crate::frontend::pages::generations::GenerationsPage;
 use crate::frontend::pages::hosts::HostsPage;
 use crate::frontend::pages::overview::OverviewPage;
+use crate::frontend::pages::tasks::TasksPage;
 use crate::frontend::pages::uptime::UptimePage;
 use crate::frontend::routing::Page;
 
@@ -17,6 +18,7 @@ pub fn CurrentPage(current_page: ReadSignal<Page>) -> impl IntoView {
                 Page::Alerts => view! { <AlertsPage /> }.into_any(),
                 Page::Certificates => view! { <CertificatesPage /> }.into_any(),
                 Page::Hosts => view! { <HostsPage /> }.into_any(),
+                Page::Tasks => view! { <TasksPage /> }.into_any(),
                 Page::Generations => view! { <GenerationsPage /> }.into_any(),
                 Page::Uptime => view! { <UptimePage /> }.into_any(),
             }

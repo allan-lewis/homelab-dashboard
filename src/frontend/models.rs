@@ -1,6 +1,13 @@
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct TaskStatus {
+    pub instance: String,
+    pub name: String,
+    pub age_ratio: f64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct CertificateExpiry {
     pub name: String,
     pub group: String,

@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize)]
+pub struct HomelabTask {
+    pub instance: String,
+    pub name: String,
+    pub age_ratio: f64,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct CertificateExpiry {
     pub key: String,
     pub name: String,

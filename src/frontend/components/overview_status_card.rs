@@ -11,13 +11,13 @@ pub fn OverviewStatusCard(
 
             {if loading {
                 view! {
-                    <p class="overview-card-primary">
+                    <p>
                         "Loading overview status..."
                     </p>
                 }.into_any()
             } else if lines.is_empty() {
                 view! {
-                    <p class="overview-card-primary">
+                    <p>
                         "All monitored systems look healthy."
                     </p>
                 }.into_any()
