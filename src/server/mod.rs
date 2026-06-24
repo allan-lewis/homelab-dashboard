@@ -44,7 +44,7 @@ fn router(state: AppState) -> Router {
         .route("/auth/callback/authentik", get(auth::auth_callback))
         .route("/auth/logout", get(auth::logout))
         .route("/api/me", get(handlers::me))
-        .route("/api/prometheus/up", get(handlers::prometheus_up))
+        .route("/api/up", get(handlers::prometheus_up))
         .route("/api/hosts", get(handlers::hosts))
         .route("/api/alerts", get(handlers::alerts))
         .route("/api/certificates", get(handlers::certificates))
