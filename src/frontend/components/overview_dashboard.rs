@@ -6,7 +6,9 @@ use wasm_bindgen_futures::spawn_local;
 use crate::frontend::components::overview_info_card::OverviewInfoCard;
 use crate::frontend::components::overview_status_card::OverviewStatusCard;
 use crate::frontend::components::summary_grid::SummaryGrid;
-use crate::frontend::generations::{fetch_generations, generation_summary_panel};
+use crate::frontend::generations::{
+    fetch_generations, generation_status_lines, generation_summary_panel,
+};
 use crate::frontend::models::{
     CertificateExpiry, FiringAlert, HostStatus, NixosGeneration, TaskStatus,
 };
@@ -145,10 +147,15 @@ pub fn OverviewDashboard() -> impl IntoView {
                     status_lines.extend(task_status_lines(&tasks.get()));
                 }
 
+                if generations_loaded.get() {
+                    status_lines.extend(generation_status_lines(&generations.get()));
+                }
+
                 let loading = !alerts_loaded.get()
                     || !hosts_loaded.get()
                     || !certificates_loaded.get()
-                    || !tasks_loaded.get();
+                    || !tasks_loaded.get()
+                    || !generations_loaded.get();
 
                 view! {
                     <OverviewStatusCard

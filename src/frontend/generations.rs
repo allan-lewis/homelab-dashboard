@@ -3,6 +3,19 @@ use gloo_net::http::Request;
 use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
 use crate::frontend::models::NixosGeneration;
 
+pub fn generation_status_lines(generations: &[NixosGeneration]) -> Vec<String> {
+    let not_current_count = generations
+        .iter()
+        .filter(|generation| !generation_is_current(generation))
+        .count();
+
+    if not_current_count == 0 {
+        Vec::new()
+    } else {
+        vec![format!("{not_current_count} systems have not booted the latest generation.")]
+    }
+}
+
 pub fn generation_is_current(generation: &NixosGeneration) -> bool {
     generation.booted_is_current
 }
