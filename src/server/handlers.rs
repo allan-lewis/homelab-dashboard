@@ -3,7 +3,7 @@ use tower_sessions::Session;
 
 use super::{
     AppState,
-    models::{CertificateExpiry, FiringAlert, HomelabTask, HostState, HostStatus, HostUpStatus, User},
+    models::{CertificateExpiry, FiringAlert, HomelabTask, HostState, HostStatus, HostUpStatus, NixosGeneration, User},
     util::{ip_address_for_host, persona_from_name},
 };
 
@@ -58,5 +58,10 @@ pub async fn certificates(State(state): State<AppState>) -> Json<Vec<Certificate
 pub async fn tasks(State(state): State<AppState>) -> Json<Vec<HomelabTask>> {
     let tasks= state.homelab_tasks_cache.read().await.clone();
     Json(tasks)
+}
+
+pub async fn generations(State(state): State<AppState>) -> Json<Vec<NixosGeneration>> {
+    let generations= state.nixos_generations_cache.read().await.clone();
+    Json(generations)
 }
 

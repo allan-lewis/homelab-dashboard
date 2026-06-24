@@ -1,6 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize)]
+pub struct NixosGeneration {
+    pub instance: String,
+    pub booted_is_current: bool,
+    pub booted_generation: String,
+    pub current_generation: String,
+    pub booted_version: String,
+    pub current_version: String,
+    pub booted_system: String,
+    pub current_system: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct HomelabTask {
     pub instance: String,
     pub name: String,

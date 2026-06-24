@@ -1,7 +1,72 @@
 use super::{
-    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, PrometheusQueryResponse},
+    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse},
     util::{friendly_name, hostname_from_name},
 };
+
+pub async fn fetch_nixos_generations(
+    prometheus_url: String,
+    client: reqwest::Client,
+) -> Result<Vec<NixosGeneration>, String> {
+    let response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", "nixos_system_info")])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
+
+    let prometheus_response = response
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
+
+    let mut generations = prometheus_response
+        .data
+        .result
+        .into_iter()
+        .map(|result| NixosGeneration {
+            instance: result.metric.get("instance").cloned().unwrap_or_default(),
+            booted_is_current: result
+                .metric
+                .get("booted_is_current")
+                .map(|value| value == "true")
+                .unwrap_or(false),
+            booted_generation: result
+                .metric
+                .get("booted_generation")
+                .cloned()
+                .unwrap_or_default(),
+            current_generation: result
+                .metric
+                .get("current_generation")
+                .cloned()
+                .unwrap_or_default(),
+            booted_version: result
+                .metric
+                .get("booted_version")
+                .cloned()
+                .unwrap_or_default(),
+            current_version: result
+                .metric
+                .get("current_version")
+                .cloned()
+                .unwrap_or_default(),
+            booted_system: result
+                .metric
+                .get("booted_system")
+                .cloned()
+                .unwrap_or_default(),
+            current_system: result
+                .metric
+                .get("current_system")
+                .cloned()
+                .unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+
+    generations.sort_by(|a, b| a.instance.cmp(&b.instance));
+
+    Ok(generations)
+}
 
 pub async fn fetch_firing_alerts(
     prometheus_url: String,
