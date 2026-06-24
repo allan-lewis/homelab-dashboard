@@ -9,6 +9,8 @@ use crate::frontend::components::summary_grid::SummaryGrid;
 use crate::frontend::generations::{
     fetch_generations, generation_status_lines, generation_summary_panel,
 };
+use crate::frontend::models::PrometheusTarget;
+use crate::frontend::up::{fetch_targets, up_summary_panel};
 use crate::frontend::models::{
     CertificateExpiry, FiringAlert, HostStatus, NixosGeneration, TaskStatus,
 };
@@ -63,6 +65,9 @@ pub fn OverviewDashboard() -> impl IntoView {
 
     let (generations, set_generations) = signal(Vec::<NixosGeneration>::new());
     let (generations_loaded, set_generations_loaded) = signal(false);
+
+    let (targets, set_targets) = signal(Vec::<PrometheusTarget>::new());
+    let (targets_loaded, set_targets_loaded) = signal(false);
 
     let (last_updated, set_last_updated) = signal(None::<String>);
 
@@ -120,6 +125,18 @@ pub fn OverviewDashboard() -> impl IntoView {
 
             set_generations.set(loaded_generations);
             set_generations_loaded.set(true);
+            set_last_updated.set(Some(current_utc_time_string()));
+
+            TimeoutFuture::new(10_000).await;
+        }
+    });
+
+    spawn_local(async move {
+        loop {
+            let loaded_targets = fetch_targets().await;
+
+            set_targets.set(loaded_targets);
+            set_targets_loaded.set(true);
             set_last_updated.set(Some(current_utc_time_string()));
 
             TimeoutFuture::new(10_000).await;
@@ -204,16 +221,20 @@ pub fn OverviewDashboard() -> impl IntoView {
                     data: host_summary_panel(&hosts.get()),
                 },
                 SummaryPanelState {
+                    loading: !targets_loaded.get(),
+                    data: up_summary_panel(&targets.get()),
+                },
+                SummaryPanelState {
                     loading: !certificates_loaded.get(),
                     data: certificate_summary_panel(&certificates.get()),
                 },
                 SummaryPanelState {
-                    loading: !tasks_loaded.get(),
-                    data: task_summary_panel(&tasks.get()),
-                },
-                SummaryPanelState {
                     loading: !generations_loaded.get(),
                     data: generation_summary_panel(&generations.get()),
+                },
+                SummaryPanelState {
+                    loading: !tasks_loaded.get(),
+                    data: task_summary_panel(&tasks.get()),
                 },
             ];
 

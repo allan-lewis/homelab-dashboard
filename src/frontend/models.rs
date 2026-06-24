@@ -1,6 +1,14 @@
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct PrometheusTarget {
+    pub instance: String,
+    pub job: String,
+    pub target: String,
+    pub up: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct NixosGeneration {
     pub instance: String,
     pub booted_is_current: bool,

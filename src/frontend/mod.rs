@@ -12,3 +12,4 @@ pub mod pages;
 pub mod routing;
 pub mod tasks;
 pub mod theme;
+pub mod up;

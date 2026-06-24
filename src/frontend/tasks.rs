@@ -30,7 +30,7 @@ pub fn task_summary_panel(tasks: &[TaskStatus]) -> SummaryPanelData {
     }
 
     SummaryPanelData {
-        title: "Tasks",
+        title: "Scheduled Tasks",
         empty_message: "No task data found.",
         items,
     }

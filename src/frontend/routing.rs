@@ -8,6 +8,7 @@ pub enum Page {
     Hosts,
     Generations,
     Tasks,
+    Up,
 }
 
 pub fn redirect_to(path: &str) {
@@ -28,6 +29,7 @@ impl Page {
             Page::Hosts => "/hosts",
             Page::Generations => "/generations",
             Page::Tasks => "/tasks",
+            Page::Up => "/up",
         }
     }
 
@@ -38,6 +40,7 @@ impl Page {
             "/hosts" => Page::Hosts,
             "/generations" => Page::Generations,
             "/tasks" => Page::Tasks,
+            "/up" => Page::Up,
             _ => Page::Overview,
         }
     }
