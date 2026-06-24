@@ -3,6 +3,19 @@ use gloo_net::http::Request;
 use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
 use crate::frontend::models::PrometheusTarget;
 
+pub fn up_status_lines(targets: &[PrometheusTarget]) -> Vec<String> {
+    let down_count = targets
+        .iter()
+        .filter(|target| target_is_down(target))
+        .count();
+
+    if down_count == 0 {
+        Vec::new()
+    } else {
+        vec![format!("{down_count} Prometheus targets are down.")]
+    }
+}
+
 pub fn up_summary_panel(targets: &[PrometheusTarget]) -> SummaryPanelData {
     let down_count = targets
         .iter()

@@ -10,7 +10,7 @@ use crate::frontend::generations::{
     fetch_generations, generation_status_lines, generation_summary_panel,
 };
 use crate::frontend::models::PrometheusTarget;
-use crate::frontend::up::{fetch_targets, up_summary_panel};
+use crate::frontend::up::{fetch_targets, up_status_lines, up_summary_panel};
 use crate::frontend::models::{
     CertificateExpiry, FiringAlert, HostStatus, NixosGeneration, TaskStatus,
 };
@@ -156,23 +156,28 @@ pub fn OverviewDashboard() -> impl IntoView {
                     status_lines.extend(host_status_lines(&hosts.get()));
                 }
 
-                if certificates_loaded.get() {
-                    status_lines.extend(certificate_status_lines(&certificates.get()));
+                if targets_loaded.get() {
+                    status_lines.extend(up_status_lines(&targets.get()));
                 }
 
-                if tasks_loaded.get() {
-                    status_lines.extend(task_status_lines(&tasks.get()));
+                if certificates_loaded.get() {
+                    status_lines.extend(certificate_status_lines(&certificates.get()));
                 }
 
                 if generations_loaded.get() {
                     status_lines.extend(generation_status_lines(&generations.get()));
                 }
 
+                if tasks_loaded.get() {
+                    status_lines.extend(task_status_lines(&tasks.get()));
+                }
+
                 let loading = !alerts_loaded.get()
                     || !hosts_loaded.get()
                     || !certificates_loaded.get()
                     || !tasks_loaded.get()
-                    || !generations_loaded.get();
+                    || !generations_loaded.get()
+                    || !targets_loaded.get();
 
                 view! {
                     <OverviewStatusCard
