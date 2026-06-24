@@ -1,6 +1,15 @@
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct NixosGeneration {
+    pub instance: String,
+    pub booted_is_current: bool,
+    pub booted_generation: String,
+    pub current_generation: String,
+    pub current_version: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct TaskStatus {
     pub instance: String,
     pub name: String,

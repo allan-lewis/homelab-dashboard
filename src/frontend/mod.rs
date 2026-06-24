@@ -4,6 +4,7 @@ pub mod app_shell;
 pub mod certificates;
 pub mod components;
 pub mod current_page;
+pub mod generations;
 pub mod hosts;
 pub mod menu_state;
 pub mod models;
