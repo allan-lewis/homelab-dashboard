@@ -58,6 +58,8 @@ pub async fn fetch_targets() -> Vec<PrometheusTarget> {
         Err(_) => Vec::new(),
     };
 
+    targets.retain(|target| target.job != "todo");
+
     targets.sort_by(|a, b| {
         a.instance
             .cmp(&b.instance)

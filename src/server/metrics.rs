@@ -197,7 +197,7 @@ pub async fn fetch_prometheus_up(
 ) -> Result<Vec<HostUpStatus>, String> {
     let response = client
         .get(format!("{}/api/v1/query", prometheus_url))
-        .query(&[("query", r#"up{job!="todo"}"#)])
+        .query(&[("query", "up")])
         .send()
         .await
         .map_err(|err| format!("failed to query Prometheus: {err}"))?;
