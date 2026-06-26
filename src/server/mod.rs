@@ -6,6 +6,13 @@ mod metrics;
 mod models;
 mod util;
 
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+    middleware,
+    response::Response,
+};
+use tower_sessions::Session;
 use axum::{Router, routing::get};
 use cache::start_polling;
 use config::AppConfig;
@@ -31,6 +38,23 @@ struct AppState {
     nixos_generations_cache: Arc<RwLock<Vec<NixosGeneration>>>,
 }
 
+async fn require_login(
+    session: Session,
+    request: Request<Body>,
+    next: middleware::Next,
+) -> Result<Response, StatusCode> {
+    let user: Option<models::User> = session
+        .get("user")
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if user.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    Ok(next.run(request).await)
+}
+
 fn sanitized_uri(uri: &axum::http::Uri) -> String {
     uri.path().to_string()
 }
@@ -39,10 +63,7 @@ fn router(state: AppState) -> Router {
     let session_store = MemoryStore::default();
     let session_layer = SessionManagerLayer::new(session_store).with_secure(true);
 
-    Router::new()
-        .route("/auth/login", get(auth::login))
-        .route("/auth/callback/authentik", get(auth::auth_callback))
-        .route("/auth/logout", get(auth::logout))
+    let api_routes = Router::new()
         .route("/api/me", get(handlers::me))
         .route("/api/up", get(handlers::prometheus_up))
         .route("/api/hosts", get(handlers::hosts))
@@ -50,6 +71,13 @@ fn router(state: AppState) -> Router {
         .route("/api/certificates", get(handlers::certificates))
         .route("/api/tasks", get(handlers::tasks))
         .route("/api/generations", get(handlers::generations))
+        .route_layer(middleware::from_fn(require_login));
+
+    Router::new()
+        .route("/auth/login", get(auth::login))
+        .route("/auth/callback/authentik", get(auth::auth_callback))
+        .route("/auth/logout", get(auth::logout))
+        .merge(api_routes)
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .with_state(state)
         .layer(session_layer)
