@@ -1,4 +1,15 @@
-use crate::server::models::HostUpStatus;
+use super::models::{HostUpStatus, PublicIpStatus};
+
+pub fn public_ip_for_host(
+    hostname: &str,
+    public_ip_statuses: &[PublicIpStatus],
+) -> String {
+    public_ip_statuses
+        .iter()
+        .find(|status| status.instance == hostname)
+        .map(|status| status.public_ip.clone())
+        .unwrap_or_default()
+}
 
 pub fn hostname_from_name(name: &str) -> String {
     name.split_whitespace()

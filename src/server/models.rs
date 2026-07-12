@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize)]
+pub struct PublicIpStatus {
+    pub instance: String,
+    pub target: String,
+    pub public_ip: String,
+    pub timestamp: f64,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct NixosGeneration {
     pub instance: String,
     pub booted_is_current: bool,
@@ -52,6 +60,7 @@ pub struct HostStatus {
     pub hostname: String,
     pub persona: String,
     pub ip_address: String,
+    pub public_ip: String,
     pub status: HostState,
     pub timestamp: f64,
 }

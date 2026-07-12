@@ -16,8 +16,15 @@ use tower_sessions::Session;
 use axum::{Router, routing::get};
 use cache::start_polling;
 use config::AppConfig;
-use metrics::{fetch_certificate_expiries, fetch_firing_alerts, fetch_gatus_hosts, fetch_prometheus_up, fetch_homelab_tasks, fetch_nixos_generations};
-use models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration};
+use metrics::{
+    fetch_certificate_expiries, fetch_firing_alerts, fetch_gatus_hosts,
+    fetch_homelab_tasks, fetch_nixos_generations, fetch_prometheus_up,
+    fetch_public_ips,
+};
+use models::{
+    CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus,
+    NixosGeneration, PublicIpStatus,
+};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::sync::RwLock;
@@ -36,6 +43,7 @@ struct AppState {
     gatus_host_cache: Arc<RwLock<Vec<GatusHostStatus>>>,
     homelab_tasks_cache: Arc<RwLock<Vec<HomelabTask>>>,
     nixos_generations_cache: Arc<RwLock<Vec<NixosGeneration>>>,
+    public_ip_cache: Arc<RwLock<Vec<PublicIpStatus>>>,
 }
 
 async fn require_login(
@@ -134,6 +142,14 @@ pub async fn run() {
     let gatus_host_cache = Arc::new(RwLock::new(Vec::<GatusHostStatus>::new()));
     let homelab_tasks_cache = Arc::new(RwLock::new(Vec::<HomelabTask>::new()));
     let nixos_generations_cache = Arc::new(RwLock::new(Vec::<NixosGeneration>::new()));
+    let public_ip_cache = Arc::new(RwLock::new(Vec::<PublicIpStatus>::new()));
+
+    start_polling(
+        "public_ips",
+        config.prometheus.url.clone(),
+        public_ip_cache.clone(),
+        fetch_public_ips,
+    );
 
     start_polling(
         "certificate_expiry",
@@ -177,7 +193,6 @@ pub async fn run() {
         fetch_nixos_generations,
     );
 
-
     let state = AppState {
         config,
         certificate_expiry_cache,
@@ -185,7 +200,8 @@ pub async fn run() {
         host_up_cache,
         gatus_host_cache,
         homelab_tasks_cache,
-        nixos_generations_cache
+        nixos_generations_cache,
+        public_ip_cache
     };
 
     let app = router(state);

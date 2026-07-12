@@ -33,10 +33,11 @@ pub fn HostsPage() -> impl IntoView {
                         <table class="status-table">
                             <thead>
                                 <tr>
-                                <th>"Hostname"</th>
-                                <th>"Persona"</th>
-                                <th>"IP Address"</th>
-                                <th>"Status"</th>
+                                    <th>"Hostname"</th>
+                                    <th>"Persona"</th>
+                                    <th>"IP Address"</th>
+                                    <th>"Public IP"</th>
+                                    <th>"Status"</th>
                                 </tr>
                             </thead>
 
@@ -61,6 +62,7 @@ pub fn HostsPage() -> impl IntoView {
                                                 <td>{host.hostname}</td>
                                                 <td>{host.persona}</td>
                                                 <td>{host.ip_address}</td>
+                                                <td>{host.public_ip}</td>
                                                 <td>
                                                     <span class=status_class>
                                                         {status_label}

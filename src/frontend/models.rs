@@ -52,6 +52,7 @@ pub struct HostStatus {
     pub hostname: String,
     pub persona: String,
     pub ip_address: String,
+    pub public_ip: String,
     pub status: HostState,
 }
 

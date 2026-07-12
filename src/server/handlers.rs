@@ -2,9 +2,12 @@ use axum::{Json, extract::State};
 use tower_sessions::Session;
 
 use super::{
+    models::{
+        CertificateExpiry, FiringAlert, HomelabTask, HostState, HostStatus, HostUpStatus,
+        NixosGeneration, PublicIpStatus, User,
+    },
+    util::{ip_address_for_host, persona_from_name, public_ip_for_host},
     AppState,
-    models::{CertificateExpiry, FiringAlert, HomelabTask, HostState, HostStatus, HostUpStatus, NixosGeneration, User},
-    util::{ip_address_for_host, persona_from_name},
 };
 
 pub async fn me(session: Session) -> Json<Option<User>> {
@@ -19,6 +22,7 @@ pub async fn me(session: Session) -> Json<Option<User>> {
 pub async fn hosts(State(state): State<AppState>) -> Json<Vec<HostStatus>> {
     let gatus_statuses = state.gatus_host_cache.read().await;
     let up_statuses = state.host_up_cache.read().await;
+    let public_ip_statuses = state.public_ip_cache.read().await;
 
     let mut hosts = gatus_statuses
         .iter()
@@ -26,6 +30,7 @@ pub async fn hosts(State(state): State<AppState>) -> Json<Vec<HostStatus>> {
             hostname: status.instance.clone(),
             persona: persona_from_name(&status.name),
             ip_address: ip_address_for_host(&status.instance, &up_statuses),
+            public_ip: public_ip_for_host(&status.instance, &public_ip_statuses),
             status: if status.up {
                 HostState::Up
             } else {

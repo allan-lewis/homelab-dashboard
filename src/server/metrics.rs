@@ -1,5 +1,5 @@
 use super::{
-    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse},
+    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse, PublicIpStatus},
     util::{friendly_name, hostname_from_name},
 };
 
@@ -322,4 +322,53 @@ pub async fn fetch_homelab_tasks(
     tasks.sort_by(|a, b| a.instance.cmp(&b.instance).then_with(|| a.name.cmp(&b.name)));
 
     Ok(tasks)
+}
+
+pub async fn fetch_public_ips(
+    prometheus_url: String,
+    client: reqwest::Client,
+) -> Result<Vec<PublicIpStatus>, String> {
+    let response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", "homelab_public_ip_numeric")])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
+
+    let prometheus_response = response
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
+
+    let mut public_ips = prometheus_response
+        .data
+        .result
+        .into_iter()
+        .filter_map(|result| {
+            let public_ip = result.metric.get("public_ip")?.clone();
+
+            if public_ip.is_empty() {
+                return None;
+            }
+
+            Some(PublicIpStatus {
+                instance: result
+                    .metric
+                    .get("instance")
+                    .cloned()
+                    .unwrap_or_default(),
+                target: result
+                    .metric
+                    .get("target")
+                    .cloned()
+                    .unwrap_or_default(),
+                public_ip,
+                timestamp: result.value.0,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    public_ips.sort_by(|a, b| a.instance.cmp(&b.instance));
+
+    Ok(public_ips)
 }
