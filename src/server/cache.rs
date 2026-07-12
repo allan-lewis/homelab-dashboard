@@ -1,10 +1,37 @@
 use std::{future::Future, sync::Arc};
 use tracing::{error, info};
-
 use tokio::{
     sync::RwLock,
     time::{Duration, sleep},
 };
+use super::{
+    metrics::fetch_firing_alerts,
+    models::FiringAlert,
+};
+
+pub fn start_firing_alerts_polling(
+    prometheus_url: String,
+    alertmanager_url: String,
+    cache: Arc<RwLock<Vec<FiringAlert>>>,
+) {
+    start_polling(
+        "firing_alerts",
+        prometheus_url,
+        cache,
+        move |prometheus_url, client| {
+            let alertmanager_url = alertmanager_url.clone();
+
+            async move {
+                fetch_firing_alerts(
+                    prometheus_url,
+                    alertmanager_url,
+                    client,
+                )
+                .await
+            }
+        },
+    );
+}
 
 pub fn start_polling<T, F, Fut>(
     name: &'static str,

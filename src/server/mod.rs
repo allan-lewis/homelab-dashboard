@@ -14,10 +14,10 @@ use axum::{
 };
 use tower_sessions::Session;
 use axum::{Router, routing::get};
-use cache::start_polling;
+use cache::{start_firing_alerts_polling, start_polling};
 use config::AppConfig;
 use metrics::{
-    fetch_certificate_expiries, fetch_firing_alerts, fetch_gatus_hosts,
+    fetch_certificate_expiries, fetch_gatus_hosts,
     fetch_homelab_tasks, fetch_nixos_generations, fetch_prometheus_up,
     fetch_public_ips,
 };
@@ -173,24 +173,10 @@ pub async fn run() {
         fetch_gatus_hosts,
     );
 
-    let alertmanager_url = config.alertmanager.url.clone();
-
-    start_polling(
-        "firing_alerts",
+    start_firing_alerts_polling(
         config.prometheus.url.clone(),
+        config.alertmanager.url.clone(),
         firing_alerts_cache.clone(),
-        move |prometheus_url, client| {
-            let alertmanager_url = alertmanager_url.clone();
-
-            async move {
-                fetch_firing_alerts(
-                    prometheus_url,
-                    alertmanager_url,
-                    client,
-                )
-                .await
-            }
-        },
     );
 
     start_polling(
