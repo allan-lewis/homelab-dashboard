@@ -4,7 +4,7 @@ use tower_sessions::Session;
 use super::{
     models::{
         CertificateExpiry, FiringAlert, HomelabTask, HostState, HostStatus, HostUpStatus,
-        NixosGeneration, PublicIpStatus, User,
+        NixosGeneration, User,
     },
     util::{ip_address_for_host, persona_from_name, public_ip_for_host},
     AppState,

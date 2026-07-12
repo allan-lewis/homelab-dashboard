@@ -1,4 +1,31 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize)]
+pub struct AlertmanagerAlert {
+    pub labels: HashMap<String, String>,
+    pub status: AlertmanagerAlertStatus,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertmanagerAlertStatus {
+    pub silenced_by: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlertmanagerSilence {
+    pub id: String,
+    pub ends_at: String,
+    pub status: AlertmanagerSilenceStatus,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AlertmanagerSilenceStatus {
+    pub state: String,
+}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct PublicIpStatus {
@@ -46,6 +73,9 @@ pub struct FiringAlert {
     pub severity: String,
     pub instance: String,
     pub timestamp: f64,
+    pub silenced: bool,
+    pub silence_count: usize,
+    pub longest_silence_remaining_seconds: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]

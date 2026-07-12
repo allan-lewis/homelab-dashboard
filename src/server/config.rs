@@ -2,6 +2,7 @@
 pub struct AppConfig {
     pub auth: AuthConfig,
     pub prometheus: PrometheusConfig,
+    pub alertmanager: AlertmanagerConfig,
 }
 
 #[derive(Clone, Debug)]
@@ -12,6 +13,11 @@ pub struct AuthConfig {
     pub redirect_uri: String,
     pub logout_uri: String,
     pub post_logout_redirect_uri: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct AlertmanagerConfig {
+    pub url: String,
 }
 
 #[derive(Clone, Debug)]
@@ -41,6 +47,10 @@ impl AppConfig {
             prometheus: PrometheusConfig {
                 url: std::env::var("HOMELAB_DASHBOARD_PROMETHEUS_URL")
                     .expect("missing HOMELAB_DASHBOARD_PROMETHEUS_URL"),
+            },
+            alertmanager: AlertmanagerConfig {
+                url: std::env::var("HOMELAB_DASHBOARD_ALERTMANAGER_URL")
+                    .expect("missing HOMELAB_DASHBOARD_ALERTMANAGER_URL"),
             },
         }
     }

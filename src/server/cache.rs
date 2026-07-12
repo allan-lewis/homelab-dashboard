@@ -13,7 +13,7 @@ pub fn start_polling<T, F, Fut>(
     fetch: F,
 ) where
     T: Send + Sync + 'static,
-    F: Fn(String, reqwest::Client) -> Fut + Send + Sync + Copy + 'static,
+    F: Fn(String, reqwest::Client) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<Vec<T>, String>> + Send + 'static,
 {
     tokio::spawn(async move {

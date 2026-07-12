@@ -133,6 +133,7 @@ pub async fn run() {
         client_id = config::redacted(&config.auth.client_id),
         client_secret = config::redacted(&config.auth.client_secret),
         prometheus_url = %config.prometheus.url,
+        alertmanager_url = %config.alertmanager.url,
         "loaded server config"
     );
 
@@ -172,11 +173,24 @@ pub async fn run() {
         fetch_gatus_hosts,
     );
 
+    let alertmanager_url = config.alertmanager.url.clone();
+
     start_polling(
         "firing_alerts",
         config.prometheus.url.clone(),
         firing_alerts_cache.clone(),
-        fetch_firing_alerts,
+        move |prometheus_url, client| {
+            let alertmanager_url = alertmanager_url.clone();
+
+            async move {
+                fetch_firing_alerts(
+                    prometheus_url,
+                    alertmanager_url,
+                    client,
+                )
+                .await
+            }
+        },
     );
 
     start_polling(

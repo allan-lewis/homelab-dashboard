@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
+
 use super::{
-    models::{CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse, PublicIpStatus},
+    models::{AlertmanagerAlert, AlertmanagerSilence, CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse, PublicIpStatus},
     util::{friendly_name, hostname_from_name},
 };
 
@@ -70,19 +74,75 @@ pub async fn fetch_nixos_generations(
 
 pub async fn fetch_firing_alerts(
     prometheus_url: String,
+    alertmanager_url: String,
     client: reqwest::Client,
 ) -> Result<Vec<FiringAlert>, String> {
-    let response = client
+    let prometheus_response = client
         .get(format!("{}/api/v1/query", prometheus_url))
         .query(&[("query", r#"ALERTS{alertstate="firing"}"#)])
         .send()
         .await
-        .map_err(|err| format!("failed to query Prometheus: {err}"))?;
-
-    let prometheus_response = response
+        .map_err(|err| format!("failed to query Prometheus alerts: {err}"))?
+        .error_for_status()
+        .map_err(|err| format!("Prometheus alerts query failed: {err}"))?
         .json::<PrometheusQueryResponse>()
         .await
-        .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
+        .map_err(|err| format!("failed to parse Prometheus alerts response: {err}"))?;
+
+    let alertmanager_alerts = client
+        .get(format!(
+            "{}/api/v2/alerts",
+            alertmanager_url.trim_end_matches('/')
+        ))
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Alertmanager alerts: {err}"))?
+        .error_for_status()
+        .map_err(|err| format!("Alertmanager alerts query failed: {err}"))?
+        .json::<Vec<AlertmanagerAlert>>()
+        .await
+        .map_err(|err| format!("failed to parse Alertmanager alerts response: {err}"))?;
+
+    let alertmanager_silences = client
+        .get(format!(
+            "{}/api/v2/silences",
+            alertmanager_url.trim_end_matches('/')
+        ))
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Alertmanager silences: {err}"))?
+        .error_for_status()
+        .map_err(|err| format!("Alertmanager silences query failed: {err}"))?
+        .json::<Vec<AlertmanagerSilence>>()
+        .await
+        .map_err(|err| format!("failed to parse Alertmanager silences response: {err}"))?;
+
+    let now = Utc::now();
+
+    let active_silence_ends: HashMap<String, DateTime<Utc>> = alertmanager_silences
+        .into_iter()
+        .filter(|silence| silence.status.state == "active")
+        .map(|silence| {
+            let ends_at = DateTime::parse_from_rfc3339(&silence.ends_at)
+                .map_err(|err| {
+                    format!(
+                        "failed to parse end time for silence {}: {err}",
+                        silence.id
+                    )
+                })?
+                .with_timezone(&Utc);
+
+            Ok((silence.id, ends_at))
+        })
+        .collect::<Result<HashMap<_, _>, String>>()?;
+
+    let alertmanager_silences_by_key: HashMap<String, Vec<String>> = alertmanager_alerts
+        .into_iter()
+        .map(|alert| {
+            let key = alert_key_from_labels(&alert.labels);
+            (key, alert.status.silenced_by)
+        })
+        .collect();
 
     let mut alerts = prometheus_response
         .data
@@ -121,6 +181,24 @@ pub async fn fetch_firing_alerts(
 
             let key = format!("{alertname}:{name}:{rulegroup}:{instance}");
 
+            let applicable_silence_ids = alertmanager_silences_by_key
+                .get(&key)
+                .cloned()
+                .unwrap_or_default();
+
+            let remaining_durations = applicable_silence_ids
+                .iter()
+                .filter_map(|silence_id| active_silence_ends.get(silence_id))
+                .map(|ends_at| (*ends_at - now).num_milliseconds() as f64 / 1_000.0)
+                .filter(|remaining| *remaining > 0.0)
+                .collect::<Vec<_>>();
+
+            let silence_count = remaining_durations.len();
+
+            let longest_silence_remaining_seconds = remaining_durations
+                .into_iter()
+                .max_by(|a, b| a.total_cmp(b));
+
             FiringAlert {
                 key,
                 alertname,
@@ -129,6 +207,9 @@ pub async fn fetch_firing_alerts(
                 severity,
                 instance,
                 timestamp: result.value.0,
+                silenced: silence_count > 0,
+                silence_count,
+                longest_silence_remaining_seconds,
             }
         })
         .collect::<Vec<_>>();
@@ -143,6 +224,27 @@ pub async fn fetch_firing_alerts(
     });
 
     Ok(alerts)
+}
+
+fn alert_key_from_labels(labels: &HashMap<String, String>) -> String {
+    let alertname = labels
+        .get("alertname")
+        .map(String::as_str)
+        .unwrap_or("unknown");
+
+    let name = labels.get("name").map(String::as_str).unwrap_or_default();
+
+    let rulegroup = labels
+        .get("rulegroup")
+        .map(String::as_str)
+        .unwrap_or_default();
+
+    let instance = labels
+        .get("instance")
+        .map(String::as_str)
+        .unwrap_or_default();
+
+    format!("{alertname}:{name}:{rulegroup}:{instance}")
 }
 
 pub async fn fetch_gatus_hosts(
