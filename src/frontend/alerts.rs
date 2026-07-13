@@ -3,6 +3,57 @@ use gloo_net::http::Request;
 use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
 use crate::frontend::models::FiringAlert;
 
+pub fn silence_remaining_label(seconds: Option<f64>) -> String {
+    let Some(seconds) = seconds else {
+        return String::new();
+    };
+
+    if seconds <= 0.0 {
+        return String::new();
+    }
+
+    let total_seconds = seconds.round() as u64;
+
+    const MINUTE: u64 = 60;
+    const HOUR: u64 = 60 * MINUTE;
+    const DAY: u64 = 24 * HOUR;
+    const WEEK: u64 = 7 * DAY;
+
+    if total_seconds >= WEEK {
+        let weeks = total_seconds / WEEK;
+
+        if weeks == 1 {
+            "1 week".to_string()
+        } else {
+            format!("{weeks} weeks")
+        }
+    } else if total_seconds >= DAY {
+        let days = total_seconds / DAY;
+
+        if days == 1 {
+            "1 day".to_string()
+        } else {
+            format!("{days} days")
+        }
+    } else if total_seconds >= HOUR {
+        let hours = total_seconds / HOUR;
+
+        if hours == 1 {
+            "1 hour".to_string()
+        } else {
+            format!("{hours} hours")
+        }
+    } else {
+        let minutes = (total_seconds / MINUTE).max(1);
+
+        if minutes == 1 {
+            "1 minute".to_string()
+        } else {
+            format!("{minutes} minutes")
+        }
+    }
+}
+
 pub fn alert_info_lines(alerts: &[FiringAlert]) -> Vec<String> {
     let info_count = alerts
         .iter()

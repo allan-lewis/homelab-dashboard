@@ -37,6 +37,12 @@ pub struct FiringAlert {
     pub rulegroup: String,
     pub severity: String,
     pub instance: String,
+
+    #[serde(default)]
+    pub silenced: bool,
+
+    #[serde(default)]
+    pub longest_silence_remaining_seconds: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

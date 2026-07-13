@@ -2,7 +2,7 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::frontend::alerts::fetch_alerts;
+use crate::frontend::alerts::{fetch_alerts, silence_remaining_label};
 use crate::frontend::models::FiringAlert;
 
 #[component]
@@ -39,6 +39,7 @@ pub fn AlertsPage() -> impl IntoView {
                                     <th>"Rule Group"</th>
                                     <th>"Instance"</th>
                                     <th>"Severity"</th>
+                                    <th>"Silenced"</th>
                                 </tr>
                             </thead>
 
@@ -47,12 +48,19 @@ pub fn AlertsPage() -> impl IntoView {
                                     .get()
                                     .into_iter()
                                     .map(|alert| {
-                                        let severity_class = match alert.severity.as_str() {
-                                            "critical" => "status-pill down",
-                                            "info" => "status-pill info",
-                                            "warning" => "status-pill warning",
-                                            _ => "status-pill unknown",
+                                        let severity_class = if alert.silenced {
+                                            "status-pill silenced"
+                                        } else {
+                                            match alert.severity.as_str() {
+                                                "critical" => "status-pill down",
+                                                "warning" => "status-pill warning",
+                                                "info" => "status-pill info",
+                                                _ => "status-pill unknown",
+                                            }
                                         };
+
+                                        let silence_label =
+                                            silence_remaining_label(alert.longest_silence_remaining_seconds);
 
                                         view! {
                                             <tr>
@@ -64,6 +72,8 @@ pub fn AlertsPage() -> impl IntoView {
                                                         {alert.severity}
                                                     </span>
                                                 </td>
+                                                <td>{silence_label}</td>
+
                                             </tr>
                                         }
                                     })
