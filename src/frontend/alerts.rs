@@ -55,23 +55,60 @@ pub fn silence_remaining_label(seconds: Option<f64>) -> String {
 }
 
 pub fn alert_info_lines(alerts: &[FiringAlert]) -> Vec<String> {
-    let info_count = alerts
+    let active_info_count = alerts
         .iter()
-        .filter(|alert| alert.severity == "info")
+        .filter(|alert| !alert.silenced && alert.severity == "info")
         .count();
 
-    vec![format!("{info_count} info alerts active.")]
+    let silenced_critical_count = alerts
+        .iter()
+        .filter(|alert| alert.silenced && alert.severity == "critical")
+        .count();
+
+    let silenced_warning_count = alerts
+        .iter()
+        .filter(|alert| alert.silenced && alert.severity == "warning")
+        .count();
+
+    let silenced_info_count = alerts
+        .iter()
+        .filter(|alert| alert.silenced && alert.severity == "info")
+        .count();
+
+    let mut lines = Vec::new();
+
+    if active_info_count > 0 {
+        lines.push(format!("{active_info_count} info alerts active."));
+    }
+
+    if silenced_critical_count > 0 {
+        lines.push(format!(
+            "{silenced_critical_count} critical alerts silenced."
+        ));
+    }
+
+    if silenced_warning_count > 0 {
+        lines.push(format!(
+            "{silenced_warning_count} warning alerts silenced."
+        ));
+    }
+
+    if silenced_info_count > 0 {
+        lines.push(format!("{silenced_info_count} info alerts silenced."));
+    }
+
+    lines
 }
 
 pub fn alert_status_lines(alerts: &[FiringAlert]) -> Vec<String> {
     let critical_count = alerts
         .iter()
-        .filter(|alert| alert.severity == "critical")
+        .filter(|alert| !alert.silenced && alert.severity == "critical")
         .count();
 
     let warning_count = alerts
         .iter()
-        .filter(|alert| alert.severity == "warning")
+        .filter(|alert| !alert.silenced && alert.severity == "warning")
         .count();
 
     let mut lines = Vec::new();
@@ -120,17 +157,22 @@ pub fn sort_alerts(alerts: &mut [FiringAlert]) {
 pub fn alert_summary_panel(alerts: &[FiringAlert]) -> SummaryPanelData {
     let critical_count = alerts
         .iter()
-        .filter(|alert| alert.severity == "critical")
+        .filter(|alert| !alert.silenced && alert.severity == "critical")
         .count();
 
     let warning_count = alerts
         .iter()
-        .filter(|alert| alert.severity == "warning")
+        .filter(|alert| !alert.silenced && alert.severity == "warning")
         .count();
 
     let info_count = alerts
         .iter()
-        .filter(|alert| alert.severity == "info")
+        .filter(|alert| !alert.silenced && alert.severity == "info")
+        .count();
+
+    let silenced_count = alerts
+        .iter()
+        .filter(|alert| alert.silenced)
         .count();
 
     let mut items = Vec::new();
@@ -156,6 +198,14 @@ pub fn alert_summary_panel(alerts: &[FiringAlert]) -> SummaryPanelData {
             label: "Info alerts firing",
             count: info_count,
             pill_class: "status-pill info",
+        });
+    }
+
+    if silenced_count > 0 {
+        items.push(SummaryPanelItem {
+            label: "Alerts silenced",
+            count: silenced_count,
+            pill_class: "status-pill silenced",
         });
     }
 
