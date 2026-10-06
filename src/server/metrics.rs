@@ -253,7 +253,10 @@ pub async fn fetch_gatus_hosts(
 ) -> Result<Vec<GatusHostStatus>, String> {
     let response = client
         .get(format!("{}/api/v1/query", prometheus_url))
-        .query(&[("query", r#"gatus_results_endpoint_success{group="Hosts"}"#)])
+        .query(&[(
+            "query",
+            r#"gatus_results_endpoint_success{group="Hosts (Local)"} or gatus_results_endpoint_success{group="Hosts (Tailscale)"}"#,
+        )])
         .send()
         .await
         .map_err(|err| format!("failed to query Prometheus: {err}"))?;
@@ -263,30 +266,32 @@ pub async fn fetch_gatus_hosts(
         .await
         .map_err(|err| format!("failed to parse Prometheus response: {err}"))?;
 
-    let mut statuses = prometheus_response
-        .data
-        .result
-        .into_iter()
-        .map(|result| {
-            let name = result
-                .metric
-                .get("name")
-                .cloned()
-                .unwrap_or_else(|| "unknown".to_string());
+    let mut hosts: HashMap<String, GatusHostStatus> = HashMap::new();
 
-            let instance = hostname_from_name(&name);
+    for result in prometheus_response.data.result {
+        let name = result
+            .metric
+            .get("name")
+            .cloned()
+            .unwrap_or_else(|| "unknown".to_string());
 
-            let target = result.metric.get("target").cloned().unwrap_or_default();
+        let instance = hostname_from_name(&name);
 
+        let target = result.metric.get("target").cloned().unwrap_or_default();
+
+        hosts.insert(
+            instance.clone(),
             GatusHostStatus {
                 instance,
                 name,
                 target,
                 timestamp: result.value.0,
                 up: result.value.1 == "1",
-            }
-        })
-        .collect::<Vec<_>>();
+            },
+        );
+    }
+
+    let mut statuses = hosts.into_values().collect::<Vec<_>>();
 
     statuses.sort_by(|a, b| a.instance.cmp(&b.instance));
 
