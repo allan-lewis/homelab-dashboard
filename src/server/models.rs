@@ -140,6 +140,8 @@ pub struct SloCheckStatus {
     pub group: String,
     pub pct_28d: f64,
     pub daily: Vec<DailySloStatus>,
+    pub slo_desc: Option<String>,
+    pub slo_url: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

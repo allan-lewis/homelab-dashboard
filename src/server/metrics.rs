@@ -7,21 +7,64 @@ use super::{
     util::{friendly_name, hostname_from_name},
 };
 
-/// Gatus check `key`s to surface on the public status page.
-const GATUS_SLO_CHECK_KEYS: &[&str] = &[
-    // Sites (Allan's Home Lab)
-    "sites-(allan's-home-lab)_allan's-home-lab",
-    "sites-(allan's-home-lab)_allan's-home-lab-(www)",
-    "sites-(allan's-home-lab)_authentik",
-    "sites-(allan's-home-lab)_checkmk",
-    "sites-(allan's-home-lab)_frigate",
-    "sites-(allan's-home-lab)_grafana",
-    "sites-(allan's-home-lab)_home-assistant",
-    "sites-(allan's-home-lab)_trilium",
-    "sites-(allan's-home-lab)_vaultwarden-(allan's-home-lab)",
-];
-
 const GATUS_SLO_WINDOW_DAYS: i64 = 28;
+
+/// Per-check overrides read from the raw Gatus `slo_*` labels.
+#[derive(Default, Clone)]
+struct SloPublicCheckMeta {
+    slo_name: Option<String>,
+    slo_desc: Option<String>,
+    slo_url: Option<String>,
+}
+
+/// Gatus checks to surface on the public status page: any check whose
+/// `slo_public` label is `"true"`, along with their `slo_name`/`slo_desc`/
+/// `slo_url` overrides. `homelab_slo_28d`/`homelab_slo_1h` don't carry these
+/// labels themselves (they're set on the raw Gatus config, which only
+/// `gatus_results_endpoint_success` et al. expose), so this has to be a
+/// separate lookup against a raw metric before filtering the recording rules.
+async fn fetch_slo_public_checks(
+    prometheus_url: &str,
+    client: &reqwest::Client,
+) -> Result<HashMap<String, SloPublicCheckMeta>, String> {
+    let response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", r#"gatus_results_endpoint_success{slo_public="true"}"#)])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus for slo_public checks: {err}"))?
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus slo_public checks response: {err}"))?;
+
+    let checks = response
+        .data
+        .result
+        .into_iter()
+        .filter_map(|result| {
+            let key = result.metric.get("key")?.clone();
+
+            let non_empty = |field: &str| {
+                result
+                    .metric
+                    .get(field)
+                    .filter(|value| !value.is_empty())
+                    .cloned()
+            };
+
+            Some((
+                key,
+                SloPublicCheckMeta {
+                    slo_name: non_empty("slo_name"),
+                    slo_desc: non_empty("slo_desc"),
+                    slo_url: non_empty("slo_url"),
+                },
+            ))
+        })
+        .collect::<HashMap<_, _>>();
+
+    Ok(checks)
+}
 
 pub async fn fetch_nixos_generations(
     prometheus_url: String,
@@ -500,11 +543,14 @@ pub async fn fetch_gatus_slo(
     prometheus_url: String,
     client: reqwest::Client,
 ) -> Result<Vec<SloCheckStatus>, String> {
-    if GATUS_SLO_CHECK_KEYS.is_empty() {
+    let slo_public_checks = fetch_slo_public_checks(&prometheus_url, &client).await?;
+
+    if slo_public_checks.is_empty() {
         return Ok(Vec::new());
     }
 
-    let key_regex = gatus_slo_key_regex();
+    let keys = slo_public_checks.keys().cloned().collect::<Vec<_>>();
+    let key_regex = gatus_slo_key_regex(&keys);
 
     let headline_query = format!(r#"homelab_slo_28d{{key=~"{key_regex}"}}"#);
 
@@ -522,7 +568,10 @@ pub async fn fetch_gatus_slo(
 
     for result in headline_response.data.result {
         let key = result.metric.get("key").cloned().unwrap_or_default();
-        let name = result.metric.get("name").cloned().unwrap_or_default();
+        let meta = slo_public_checks.get(&key).cloned().unwrap_or_default();
+        let name = meta
+            .slo_name
+            .unwrap_or_else(|| result.metric.get("name").cloned().unwrap_or_default());
         let group = result.metric.get("group").cloned().unwrap_or_default();
         let pct_28d = result.value.1.parse::<f64>().unwrap_or_default();
 
@@ -534,6 +583,8 @@ pub async fn fetch_gatus_slo(
                 group,
                 pct_28d,
                 daily: Vec::new(),
+                slo_desc: meta.slo_desc,
+                slo_url: meta.slo_url,
             },
         );
     }
@@ -595,7 +646,7 @@ pub async fn fetch_gatus_slo(
     }
 
     let mut statuses = checks.into_values().collect::<Vec<_>>();
-    statuses.sort_by(|a, b| a.key.cmp(&b.key));
+    statuses.sort_by(|a, b| a.name.cmp(&b.name));
 
     Ok(statuses)
 }
@@ -607,11 +658,14 @@ pub async fn fetch_gatus_live_status(
     prometheus_url: String,
     client: reqwest::Client,
 ) -> Result<Vec<LiveCheckStatus>, String> {
-    if GATUS_SLO_CHECK_KEYS.is_empty() {
+    let slo_public_checks = fetch_slo_public_checks(&prometheus_url, &client).await?;
+
+    if slo_public_checks.is_empty() {
         return Ok(Vec::new());
     }
 
-    let key_regex = gatus_slo_key_regex();
+    let keys = slo_public_checks.keys().cloned().collect::<Vec<_>>();
+    let key_regex = gatus_slo_key_regex(&keys);
 
     let current_query = format!(r#"gatus_results_endpoint_success{{key=~"{key_regex}"}}"#);
 
@@ -673,11 +727,10 @@ pub async fn fetch_gatus_live_status(
     Ok(statuses)
 }
 
-fn gatus_slo_key_regex() -> String {
+fn gatus_slo_key_regex(keys: &[String]) -> String {
     escape_promql_string_literal(&format!(
         "^({})$",
-        GATUS_SLO_CHECK_KEYS
-            .iter()
+        keys.iter()
             .map(|key| escape_regex_literal(key))
             .collect::<Vec<_>>()
             .join("|")

@@ -11,7 +11,31 @@ pub fn SloCheckRow(check: SloCheckStatus, live_state: Option<LiveState>) -> impl
     view! {
         <div class="slo-check-row">
             <div class="slo-check-header">
-                <span class="slo-check-name">{check.name.clone()}</span>
+                <div class="slo-check-titles">
+                    <span class="slo-check-name">{check.name.clone()}</span>
+                    {check
+                        .slo_desc
+                        .clone()
+                        .map(|desc| {
+                            view! { <span class="slo-check-subheading">{desc}</span> }
+                        })}
+                    {check
+                        .slo_url
+                        .clone()
+                        .map(|url| {
+                            let link_text = url.clone();
+                            view! {
+                                <a
+                                    class="slo-check-link"
+                                    href=url
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    {link_text}
+                                </a>
+                            }
+                        })}
+                </div>
 
                 <div class="slo-check-pills">
                     {live_state
