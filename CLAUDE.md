@@ -38,14 +38,33 @@ button is hidden — don't assume a solution, ask.
 - `GET /api/public/live-status` — Healthy/Unstable/Down per check.
   Cache refreshes every 30s via the generic `start_polling`.
 
-**Which checks get surfaced**: `GATUS_SLO_CHECK_KEYS` in
-`src/server/metrics.rs` — a plain `const` list of Gatus `key`s, by
-deliberate choice (user wants a hardcoded list, not a Doppler/env var,
-since this is expected to keep changing and isn't secret). Currently only
-the 9 checks in the "Sites (Allan's Home Lab)" group. More groups/checks
-get added here as the user specifies them — check Prometheus
+**Which checks get surfaced**: driven entirely by Gatus config now, not
+a const list in this repo. `fetch_slo_public_checks` in
+`src/server/metrics.rs` queries
+`gatus_results_endpoint_success{slo_public="true"}` to get the live set
+of keys, plus whatever `slo_name`/`slo_desc`/`slo_url` labels each check
+carries. `homelab_slo_28d`/`homelab_slo_1h` don't carry `slo_*` labels
+themselves, so this lookup against a raw metric always has to happen
+before the recording-rule queries can be regex-filtered down to the
+public set — don't try to query `slo_public` directly off the recording
+rules, it isn't there.
+
+- `slo_name` overrides the panel title (falls back to the Gatus `name`
+  label if absent).
+- `slo_desc` renders as a subheading under the title.
+- `slo_url` renders as a third line, a plain clickable link, rendered
+  and linked to exactly as given — no `https://` is prepended in code
+  anymore (it was, briefly; dropped once the user started putting the
+  scheme directly in the Gatus label). If a check's `slo_url` is set
+  without a scheme, the link will be relative and broken — that's a
+  source-data problem to fix in Gatus config, not something to
+  work around here.
+- Panels sort alphabetically by display `name` (`SloCheckStatus.name`,
+  post-`slo_name`-override), not by the raw Gatus `key`.
+
+To find candidate checks to tag, check Prometheus
 (`https://prometheus.nixos.allanshomelab.com`) label values on `group`/
-`key`/`name` for `gatus_results_total` if you need to find more.
+`key`/`name`/`slo_*` for `gatus_results_total`.
 
 **SLO target is three nines (99.9%)**, strict red/green (no amber) on
 both the headline pill and the daily boxes — `SLO_TARGET` in
@@ -74,8 +93,8 @@ pattern**, so a single `\(` is invalid at the query-parsing stage. You
 have to double the backslash (`\\(`) so PromQL unescapes it down to the
 `\(` the regex engine actually needs. This is handled by
 `escape_regex_literal` + `escape_promql_string_literal` (apply both, in
-that order) via the `gatus_slo_key_regex()` helper in `metrics.rs` — reuse
-that helper, don't hand-roll a new regex-filtered query without it.
+that order) via the `gatus_slo_key_regex(keys)` helper in `metrics.rs` —
+reuse that helper, don't hand-roll a new regex-filtered query without it.
 
 ### Data depth caveat
 
