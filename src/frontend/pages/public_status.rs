@@ -4,10 +4,13 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::frontend::components::app_header::AppHeader;
 use crate::frontend::components::overview_dashboard::current_utc_time_string;
+use crate::frontend::components::site_footer::SiteFooter;
 use crate::frontend::components::slo_check_row::SloCheckRow;
 use crate::frontend::models::{LiveCheckStatus, SloCheckStatus};
 use crate::frontend::slo::{fetch_live_status, fetch_slo_status};
+use crate::frontend::theme::theme_mode_from_storage;
 
 #[component]
 pub fn PublicStatusPage() -> impl IntoView {
@@ -15,6 +18,7 @@ pub fn PublicStatusPage() -> impl IntoView {
     let (loaded, set_loaded) = signal(false);
     let (last_updated, set_last_updated) = signal(None::<String>);
     let (live_statuses, set_live_statuses) = signal(Vec::<LiveCheckStatus>::new());
+    let (theme_mode, set_theme_mode) = signal(theme_mode_from_storage());
 
     spawn_local(async move {
         loop {
@@ -40,46 +44,49 @@ pub fn PublicStatusPage() -> impl IntoView {
 
     view! {
         <main class="public-status-page">
-            <p class="public-status-last-updated">
-                {move || match last_updated.get() {
-                    Some(updated) => format!("Last updated {updated}"),
-                    None => "Last updated time unavailable".to_string(),
-                }}
-            </p>
+            <AppHeader current_user=None />
 
-            <div class="public-status-content">
-                <h1>"Allan's Home Lab Status"</h1>
-                <p class="public-status-subtitle">"28-day uptime for key services."</p>
+            <div class="public-status-main">
+                <div class="public-status-content">
+                    <h1>"Allan's Home Lab Status"</h1>
+                    <p class="public-status-subtitle">"28-day uptime for key services."</p>
 
-                {move || {
-                    if !loaded.get() {
-                        view! { <p>"Loading status..."</p> }.into_any()
-                    } else if checks.get().is_empty() {
-                        view! { <p>"No status checks configured yet."</p> }.into_any()
-                    } else {
-                        let live_by_key: HashMap<String, _> = live_statuses
-                            .get()
-                            .into_iter()
-                            .map(|status| (status.key, status.state))
-                            .collect();
+                    {move || {
+                        if !loaded.get() {
+                            view! { <p>"Loading status..."</p> }.into_any()
+                        } else if checks.get().is_empty() {
+                            view! { <p>"No status checks configured yet."</p> }.into_any()
+                        } else {
+                            let live_by_key: HashMap<String, _> = live_statuses
+                                .get()
+                                .into_iter()
+                                .map(|status| (status.key, status.state))
+                                .collect();
 
-                        view! {
-                            <div class="slo-check-list">
-                                {checks
-                                    .get()
-                                    .into_iter()
-                                    .map(|check| {
-                                        let live_state = live_by_key.get(&check.key).cloned();
+                            view! {
+                                <div class="slo-check-list">
+                                    {checks
+                                        .get()
+                                        .into_iter()
+                                        .map(|check| {
+                                            let live_state = live_by_key.get(&check.key).cloned();
 
-                                        view! { <SloCheckRow check=check live_state=live_state /> }
-                                    })
-                                    .collect_view()}
-                            </div>
+                                            view! { <SloCheckRow check=check live_state=live_state /> }
+                                        })
+                                        .collect_view()}
+                                </div>
+                            }
+                                .into_any()
                         }
-                            .into_any()
-                    }
-                }}
+                    }}
+                </div>
             </div>
+
+            <SiteFooter
+                theme_mode=theme_mode
+                set_theme_mode=set_theme_mode
+                last_updated=last_updated
+            />
         </main>
     }
 }

@@ -50,7 +50,10 @@ pub fn current_utc_time_string() -> String {
 }
 
 #[component]
-pub fn OverviewDashboard() -> impl IntoView {
+pub fn OverviewDashboard(
+    last_updated: ReadSignal<Option<String>>,
+    set_last_updated: WriteSignal<Option<String>>,
+) -> impl IntoView {
     let (certificates, set_certificates) = signal(Vec::<CertificateExpiry>::new());
     let (certificates_loaded, set_certificates_loaded) = signal(false);
 
@@ -68,8 +71,6 @@ pub fn OverviewDashboard() -> impl IntoView {
 
     let (targets, set_targets) = signal(Vec::<PrometheusTarget>::new());
     let (targets_loaded, set_targets_loaded) = signal(false);
-
-    let (last_updated, set_last_updated) = signal(None::<String>);
 
     spawn_local(async move {
         loop {

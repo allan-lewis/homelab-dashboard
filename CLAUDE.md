@@ -101,3 +101,80 @@ any 28-day window will show `pct: null` (rendered gray) until enough wall
 - Panel background is a single `color-mix(in srgb, var(--button-bg) 92%,
   var(--text) 8%)` shade (the user tried alternating stripes first and
   didn't like it — don't reintroduce striping without asking).
+
+## Shared header/footer across authenticated + public views
+
+The "open item" above is resolved: `AppHeader` (`src/frontend/components/
+app_header.rs`) and the new `SiteFooter` (`src/frontend/components/
+site_footer.rs`) are now shared by both `AppShell` (authenticated) and
+`PublicStatusPage` (anonymous), so the two views stay structurally
+aligned instead of diverging.
+
+**`AppHeader`** takes `current_user: Option<User>` — always renders the
+header icon + "Allan's Home Lab Dashboard" on the left; right side is
+name/email + Logout when `Some`, a Login button (→ `/auth/login`, a
+plain `<a>`, no JS) when `None`. This is the way back to `/auth/login`
+now that there's no other UI path to it.
+
+**`SiteFooter`** takes `theme_mode`/`set_theme_mode` (always) and an
+optional `last_updated: ReadSignal<Option<String>>` (only
+`PublicStatusPage` and the authenticated `AppShell` pass one — see
+below). Layout: theme picker far left, "© {year} · Allan's Home Lab"
+centered (absolute-centered within the footer, independent of how wide
+the two side slots are), last-updated far right.
+
+**Menu expand/collapse is gone for now, on purpose** — `menu_state.rs`
+(localStorage-backed open/closed flag) was deleted, `SideMenu` no longer
+takes a `menu_open` prop, and `.side-menu` is just a fixed 16rem column.
+The user explicitly deferred reworking this ("we'll rework that once
+everything else is working smoothly") — don't reintroduce a toggle
+without asking what shape they want it in.
+
+**Theme picker moved from the sidebar into `SiteFooter`** (it used to
+live at the bottom of `SideMenu`, authenticated-only). It's icon-based
+now (`ThemeSelector`, inline SVG sun/moon/monitor, `stroke="currentColor"`)
+rather than the original "AUTO/LIGHT/DARK" text buttons — deliberately
+subtle: no border, `--muted-text` by default, `--hover-bg`/`--active-bg`
+only on hover/active. Theme application itself didn't change — `main.rs`
+already calls `apply_theme_mode(theme_mode_from_storage())` before mount
+regardless of auth state, so system-default + localStorage persistence
+was already correct; this only changed where the *control* lives.
+
+**`last_updated` for the authenticated shell is the Overview page's own
+signal, lifted up** — `AppShell` now owns `(last_updated,
+set_last_updated)` and threads it down through `CurrentPage` →
+`OverviewPage` → `OverviewDashboard` (which used to create this signal
+itself) so the footer and the Overview "Information" panel
+(`OverviewInfoCard`) show the literal same value, not a separately
+fetched copy. Only the `Overview` branch of `CurrentPage` takes the
+signal — other pages don't have an equivalent "last updated" concept
+yet, so the footer's last-updated slot is simply empty on those pages.
+
+### Header icon assets — three separate SVGs, don't conflate them
+
+- `favicon.svg` — browser tab icon. **Hands off this one** unless
+  explicitly asked; it's intentionally decoupled from the header icons
+  below so they can be iterated on independently.
+- `header-icon-dark.svg` / `header-icon-light.svg` — used only inside
+  `AppHeader`, swapped via CSS (`.site-header-favicon-dark` /
+  `.site-header-favicon-light`, toggled by the same `html[data-theme=...]`
+  / `prefers-color-scheme` selector pattern the color vars use at the top
+  of `index.html`). Both `<img>` tags are always in the DOM; CSS
+  `display` picks which one shows.
+- Current design (landed after a few rounds of iteration — see below):
+  a house silhouette (`M16 6 L26 15 V26 H6 V15 Z`, white in the dark
+  variant / black in the light variant) with its bottom-right 10×10
+  quadrant (`x:16–26, y:16–26`) cut out via an evenodd path, and a green
+  `rgb(34,197,94)` 7×7 square dropped into that cutout flush to the
+  bottom-right corner, inset 3 units from both inner edges — i.e. the
+  green square and the house silhouette never touch, with an even
+  transparent gap on both sides. No background rect — fully transparent
+  surround, blends into whatever's behind the header.
+- History worth knowing before re-litigating: earlier attempts used a
+  circular badge overlapping the house (looked like a status dot) —
+  dropped because the gap between the cutout circle and the badge circle
+  was too thin at render size and read as a stray white/black ring even
+  after widening it. A green-door-only version (no cutout at all) was
+  also tried and reverted — user wanted the quadrant-cutout + inset
+  approach specifically. If asked to revisit the icon again, prefer
+  small adjustments to the current geometry over reinventing it.

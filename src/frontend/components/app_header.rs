@@ -1,48 +1,51 @@
-use crate::frontend::menu_state::save_menu_open;
+use crate::frontend::models::User;
 use crate::frontend::routing::redirect_to;
 use leptos::prelude::*;
 
 #[component]
-pub fn AppHeader(
-    name: String,
-    email: String,
-    menu_open: ReadSignal<bool>,
-    set_menu_open: WriteSignal<bool>,
-) -> impl IntoView {
+pub fn AppHeader(current_user: Option<User>) -> impl IntoView {
     view! {
-        <header class="app-header">
+        <header class="site-header">
             <div class="header-left">
-                <button
-                    class="icon-button"
-                    on:click=move |_| {
-                        let new_value = !menu_open.get();
-
-                        set_menu_open.set(new_value);
-                        save_menu_open(new_value);
-                    }
-                >
-                    "☰"
-                </button>
-
-                <h1>"Homelab Dashboard"</h1>
+                <img
+                    class="site-header-favicon site-header-favicon-light"
+                    src="/header-icon-light.svg"
+                    alt=""
+                />
+                <img
+                    class="site-header-favicon site-header-favicon-dark"
+                    src="/header-icon-dark.svg"
+                    alt=""
+                />
+                <h1>"Allan's Home Lab Dashboard"</h1>
             </div>
 
             <div class="header-right">
-                <span class="user-label">
-                    {name}
-                    " <"
-                    {email}
-                    ">"
-                </span>
+                {match current_user {
+                    Some(user) => {
+                        view! {
+                            <span class="user-label">
+                                {user.name}
+                                " <"
+                                {user.email}
+                                ">"
+                            </span>
 
-                <button
-                    class="secondary-button"
-                    on:click=move |_| redirect_to("/auth/logout")
-                >
-                    "Logout"
-                </button>
+                            <button
+                                class="secondary-button"
+                                on:click=move |_| redirect_to("/auth/logout")
+                            >
+                                "Logout"
+                            </button>
+                        }
+                            .into_any()
+                    }
+                    None => {
+                        view! { <a class="secondary-button" href="/auth/login">"Login"</a> }
+                            .into_any()
+                    }
+                }}
             </div>
         </header>
     }
 }
-

@@ -3,7 +3,6 @@ use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::frontend::app_shell::AppShell;
-use crate::frontend::menu_state::menu_open_from_storage;
 use crate::frontend::models::{AuthState, User};
 use crate::frontend::pages::loading::LoadingPage;
 use crate::frontend::pages::public_status::PublicStatusPage;
@@ -11,7 +10,6 @@ use crate::frontend::pages::public_status::PublicStatusPage;
 #[component]
 pub fn App() -> impl IntoView {
     let (auth_state, set_auth_state) = signal(AuthState::Loading);
-    let (menu_open, set_menu_open) = signal(menu_open_from_storage());
 
     spawn_local(async move {
         let loaded_user = match Request::get("/api/me").send().await {
@@ -39,15 +37,10 @@ pub fn App() -> impl IntoView {
                 .into_any(),
 
                 AuthState::Authenticated(current_user) => view! {
-                    <AppShell
-                        current_user=current_user
-                        menu_open=menu_open
-                        set_menu_open=set_menu_open
-                    />
+                    <AppShell current_user=current_user />
                 }
                 .into_any(),
             }
         }}
     }
 }
-
