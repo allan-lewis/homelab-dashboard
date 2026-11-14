@@ -1,4 +1,5 @@
 pub mod app_header;
+pub mod menu_icons;
 pub mod menu_item;
 pub mod overview_dashboard;
 pub mod overview_status_card;

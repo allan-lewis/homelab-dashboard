@@ -6,6 +6,7 @@ pub mod components;
 pub mod current_page;
 pub mod generations;
 pub mod hosts;
+pub mod menu_state;
 pub mod models;
 pub mod pages;
 pub mod routing;

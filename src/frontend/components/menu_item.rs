@@ -1,9 +1,11 @@
+use crate::frontend::components::menu_icons::MenuIcon;
 use crate::frontend::routing::{push_path, Page};
 use leptos::prelude::*;
 
 #[component]
 pub fn MenuItem(
     label: &'static str,
+    icon: MenuIcon,
     target: Page,
     current_page: ReadSignal<Page>,
     set_current_page: WriteSignal<Page>,
@@ -17,13 +19,14 @@ pub fn MenuItem(
                     "menu-item"
                 }
             }
+            title=label
             on:click=move |_| {
                 set_current_page.set(target);
                 push_path(target.path());
             }
         >
-            {label}
+            <span class="menu-item-label">{label}</span>
+            <span class="menu-item-icon">{icon.view()}</span>
         </button>
     }
 }
-
