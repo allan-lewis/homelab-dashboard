@@ -26,7 +26,7 @@ use crate::frontend::hosts::{
     fetch_hosts, host_info_lines, host_status_lines, host_summary_panel,
 };
 
-fn current_utc_time_string() -> String {
+pub fn current_utc_time_string() -> String {
     let now = Date::new_0();
 
     let weekdays = [

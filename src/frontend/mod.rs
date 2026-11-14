@@ -10,6 +10,7 @@ pub mod menu_state;
 pub mod models;
 pub mod pages;
 pub mod routing;
+pub mod slo;
 pub mod tasks;
 pub mod theme;
 pub mod up;

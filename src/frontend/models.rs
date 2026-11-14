@@ -63,6 +63,19 @@ pub struct HostStatus {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct DailySloStatus {
+    pub date: String,
+    pub pct: Option<f64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct SloCheckStatus {
+    pub name: String,
+    pub pct_28d: f64,
+    pub daily: Vec<DailySloStatus>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct User {
     pub name: String,
     pub email: String,

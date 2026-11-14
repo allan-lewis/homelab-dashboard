@@ -5,6 +5,8 @@ pub mod overview_status_card;
 pub mod overview_info_card;
 pub mod theme_selector;
 pub mod side_menu;
+pub mod slo_check_row;
+pub mod slo_day_box;
 pub mod summary_grid;
 pub mod summary_line;
 pub mod summary_panel;

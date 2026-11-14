@@ -5,5 +5,6 @@ pub mod loading;
 pub mod login;
 pub mod overview;
 pub mod generations;
+pub mod public_status;
 pub mod tasks;
 pub mod up;

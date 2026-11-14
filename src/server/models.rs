@@ -111,6 +111,37 @@ pub struct PrometheusResult {
     pub value: (f64, String),
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PrometheusRangeQueryResponse {
+    pub data: PrometheusRangeData,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PrometheusRangeData {
+    pub result: Vec<PrometheusRangeResult>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PrometheusRangeResult {
+    pub metric: std::collections::HashMap<String, String>,
+    pub values: Vec<(f64, String)>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DailySloStatus {
+    pub date: String,
+    pub pct: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SloCheckStatus {
+    pub key: String,
+    pub name: String,
+    pub group: String,
+    pub pct_28d: f64,
+    pub daily: Vec<DailySloStatus>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct GatusHostStatus {
     pub instance: String,

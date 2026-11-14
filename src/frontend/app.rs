@@ -6,7 +6,7 @@ use crate::frontend::app_shell::AppShell;
 use crate::frontend::menu_state::menu_open_from_storage;
 use crate::frontend::models::{AuthState, User};
 use crate::frontend::pages::loading::LoadingPage;
-use crate::frontend::pages::login::LoginPage;
+use crate::frontend::pages::public_status::PublicStatusPage;
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -34,7 +34,7 @@ pub fn App() -> impl IntoView {
                 .into_any(),
 
                 AuthState::Anonymous => view! {
-                    <LoginPage />
+                    <PublicStatusPage />
                 }
                 .into_any(),
 

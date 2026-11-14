@@ -1,11 +1,27 @@
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 
 use super::{
-    models::{AlertmanagerAlert, AlertmanagerSilence, CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse, PublicIpStatus},
+    models::{AlertmanagerAlert, AlertmanagerSilence, CertificateExpiry, DailySloStatus, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse, PrometheusRangeQueryResponse, PublicIpStatus, SloCheckStatus},
     util::{friendly_name, hostname_from_name},
 };
+
+/// Gatus check `key`s to surface on the public status page.
+const GATUS_SLO_CHECK_KEYS: &[&str] = &[
+    // Sites (Allan's Home Lab)
+    "sites-(allan's-home-lab)_allan's-home-lab",
+    "sites-(allan's-home-lab)_allan's-home-lab-(www)",
+    "sites-(allan's-home-lab)_authentik",
+    "sites-(allan's-home-lab)_checkmk",
+    "sites-(allan's-home-lab)_frigate",
+    "sites-(allan's-home-lab)_grafana",
+    "sites-(allan's-home-lab)_home-assistant",
+    "sites-(allan's-home-lab)_trilium",
+    "sites-(allan's-home-lab)_vaultwarden-(allan's-home-lab)",
+];
+
+const GATUS_SLO_WINDOW_DAYS: i64 = 28;
 
 pub async fn fetch_nixos_generations(
     prometheus_url: String,
@@ -478,4 +494,141 @@ pub async fn fetch_public_ips(
     public_ips.sort_by(|a, b| a.instance.cmp(&b.instance));
 
     Ok(public_ips)
+}
+
+pub async fn fetch_gatus_slo(
+    prometheus_url: String,
+    client: reqwest::Client,
+) -> Result<Vec<SloCheckStatus>, String> {
+    if GATUS_SLO_CHECK_KEYS.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let key_regex = escape_promql_string_literal(&format!(
+        "^({})$",
+        GATUS_SLO_CHECK_KEYS
+            .iter()
+            .map(|key| escape_regex_literal(key))
+            .collect::<Vec<_>>()
+            .join("|")
+    ));
+
+    let headline_query = format!(r#"homelab_slo_28d{{key=~"{key_regex}"}}"#);
+
+    let headline_response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", headline_query.as_str())])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus for SLO headline: {err}"))?
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus SLO headline response: {err}"))?;
+
+    let mut checks: HashMap<String, SloCheckStatus> = HashMap::new();
+
+    for result in headline_response.data.result {
+        let key = result.metric.get("key").cloned().unwrap_or_default();
+        let name = result.metric.get("name").cloned().unwrap_or_default();
+        let group = result.metric.get("group").cloned().unwrap_or_default();
+        let pct_28d = result.value.1.parse::<f64>().unwrap_or_default();
+
+        checks.insert(
+            key.clone(),
+            SloCheckStatus {
+                key,
+                name,
+                group,
+                pct_28d,
+                daily: Vec::new(),
+            },
+        );
+    }
+
+    let daily_query = format!(
+        r#"sum by (key, name, group) (increase(gatus_results_total{{success="true", key=~"{key_regex}"}}[1d])) / sum by (key, name, group) (increase(gatus_results_total{{key=~"{key_regex}"}}[1d]))"#
+    );
+
+    let end = Utc::now();
+    let start = end - ChronoDuration::days(GATUS_SLO_WINDOW_DAYS);
+    let start_param = start.timestamp().to_string();
+    let end_param = end.timestamp().to_string();
+
+    let daily_response = client
+        .get(format!("{}/api/v1/query_range", prometheus_url))
+        .query(&[
+            ("query", daily_query.as_str()),
+            ("start", start_param.as_str()),
+            ("end", end_param.as_str()),
+            ("step", "86400"),
+        ])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus for SLO daily grid: {err}"))?
+        .json::<PrometheusRangeQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus SLO daily grid response: {err}"))?;
+
+    for result in daily_response.data.result {
+        let key = result.metric.get("key").cloned().unwrap_or_default();
+
+        let Some(check) = checks.get_mut(&key) else {
+            continue;
+        };
+
+        let mut pct_by_date: HashMap<String, f64> = HashMap::new();
+
+        for (timestamp, value) in &result.values {
+            if let Ok(pct) = value.parse::<f64>() {
+                let date = DateTime::from_timestamp(*timestamp as i64, 0)
+                    .map(|dt| dt.format("%Y-%m-%d").to_string())
+                    .unwrap_or_default();
+
+                pct_by_date.insert(date, pct);
+            }
+        }
+
+        check.daily = (0..GATUS_SLO_WINDOW_DAYS)
+            .map(|offset| {
+                let date = (end - ChronoDuration::days(GATUS_SLO_WINDOW_DAYS - 1 - offset))
+                    .format("%Y-%m-%d")
+                    .to_string();
+
+                let pct = pct_by_date.get(&date).copied();
+
+                DailySloStatus { date, pct }
+            })
+            .collect();
+    }
+
+    let mut statuses = checks.into_values().collect::<Vec<_>>();
+    statuses.sort_by(|a, b| a.key.cmp(&b.key));
+
+    Ok(statuses)
+}
+
+fn escape_regex_literal(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+
+    for c in value.chars() {
+        if matches!(
+            c,
+            '\\' | '.' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '|'
+        ) {
+            escaped.push('\\');
+        }
+
+        escaped.push(c);
+    }
+
+    escaped
+}
+
+/// PromQL string literals do their own backslash-escaping before the regex
+/// engine ever sees the value, so a single `\(` from `escape_regex_literal`
+/// is rejected as an "unknown escape sequence" at the query-parsing stage.
+/// Doubling backslashes here makes PromQL unescape `\\(` down to the `\(`
+/// the regex engine actually needs to see.
+fn escape_promql_string_literal(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }

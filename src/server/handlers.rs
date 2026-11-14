@@ -4,11 +4,16 @@ use tower_sessions::Session;
 use super::{
     models::{
         CertificateExpiry, FiringAlert, HomelabTask, HostState, HostStatus, HostUpStatus,
-        NixosGeneration, User,
+        NixosGeneration, SloCheckStatus, User,
     },
     util::{ip_address_for_host, persona_from_name, public_ip_for_host},
     AppState,
 };
+
+pub async fn public_slo_status(State(state): State<AppState>) -> Json<Vec<SloCheckStatus>> {
+    let statuses = state.slo_status_cache.read().await.clone();
+    Json(statuses)
+}
 
 pub async fn me(session: Session) -> Json<Option<User>> {
     let user: Option<User> = session

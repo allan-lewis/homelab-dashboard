@@ -14,7 +14,7 @@ use axum::{
 };
 use tower_sessions::Session;
 use axum::{Router, routing::get};
-use cache::{start_firing_alerts_polling, start_polling};
+use cache::{start_firing_alerts_polling, start_gatus_slo_polling, start_polling};
 use config::AppConfig;
 use metrics::{
     fetch_certificate_expiries, fetch_gatus_hosts,
@@ -23,7 +23,7 @@ use metrics::{
 };
 use models::{
     CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus,
-    NixosGeneration, PublicIpStatus,
+    NixosGeneration, PublicIpStatus, SloCheckStatus,
 };
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -44,6 +44,7 @@ struct AppState {
     homelab_tasks_cache: Arc<RwLock<Vec<HomelabTask>>>,
     nixos_generations_cache: Arc<RwLock<Vec<NixosGeneration>>>,
     public_ip_cache: Arc<RwLock<Vec<PublicIpStatus>>>,
+    slo_status_cache: Arc<RwLock<Vec<SloCheckStatus>>>,
 }
 
 async fn require_login(
@@ -72,7 +73,6 @@ fn router(state: AppState) -> Router {
     let session_layer = SessionManagerLayer::new(session_store).with_secure(true);
 
     let api_routes = Router::new()
-        .route("/api/me", get(handlers::me))
         .route("/api/up", get(handlers::prometheus_up))
         .route("/api/hosts", get(handlers::hosts))
         .route("/api/alerts", get(handlers::alerts))
@@ -85,6 +85,8 @@ fn router(state: AppState) -> Router {
         .route("/auth/login", get(auth::login))
         .route("/auth/callback/authentik", get(auth::auth_callback))
         .route("/auth/logout", get(auth::logout))
+        .route("/api/me", get(handlers::me))
+        .route("/api/public/slo-status", get(handlers::public_slo_status))
         .merge(api_routes)
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .with_state(state)
@@ -144,6 +146,7 @@ pub async fn run() {
     let homelab_tasks_cache = Arc::new(RwLock::new(Vec::<HomelabTask>::new()));
     let nixos_generations_cache = Arc::new(RwLock::new(Vec::<NixosGeneration>::new()));
     let public_ip_cache = Arc::new(RwLock::new(Vec::<PublicIpStatus>::new()));
+    let slo_status_cache = Arc::new(RwLock::new(Vec::<SloCheckStatus>::new()));
 
     start_polling(
         "public_ips",
@@ -193,6 +196,8 @@ pub async fn run() {
         fetch_nixos_generations,
     );
 
+    start_gatus_slo_polling(config.prometheus.url.clone(), slo_status_cache.clone());
+
     let state = AppState {
         config,
         certificate_expiry_cache,
@@ -201,7 +206,8 @@ pub async fn run() {
         gatus_host_cache,
         homelab_tasks_cache,
         nixos_generations_cache,
-        public_ip_cache
+        public_ip_cache,
+        slo_status_cache,
     };
 
     let app = router(state);
