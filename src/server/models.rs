@@ -143,6 +143,20 @@ pub struct SloCheckStatus {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LiveState {
+    Healthy,
+    Unstable,
+    Down,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LiveCheckStatus {
+    pub key: String,
+    pub state: LiveState,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct GatusHostStatus {
     pub instance: String,
     pub name: String,

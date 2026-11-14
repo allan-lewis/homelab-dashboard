@@ -17,13 +17,13 @@ use axum::{Router, routing::get};
 use cache::{start_firing_alerts_polling, start_gatus_slo_polling, start_polling};
 use config::AppConfig;
 use metrics::{
-    fetch_certificate_expiries, fetch_gatus_hosts,
+    fetch_certificate_expiries, fetch_gatus_hosts, fetch_gatus_live_status,
     fetch_homelab_tasks, fetch_nixos_generations, fetch_prometheus_up,
     fetch_public_ips,
 };
 use models::{
     CertificateExpiry, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus,
-    NixosGeneration, PublicIpStatus, SloCheckStatus,
+    LiveCheckStatus, NixosGeneration, PublicIpStatus, SloCheckStatus,
 };
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -45,6 +45,7 @@ struct AppState {
     nixos_generations_cache: Arc<RwLock<Vec<NixosGeneration>>>,
     public_ip_cache: Arc<RwLock<Vec<PublicIpStatus>>>,
     slo_status_cache: Arc<RwLock<Vec<SloCheckStatus>>>,
+    live_status_cache: Arc<RwLock<Vec<LiveCheckStatus>>>,
 }
 
 async fn require_login(
@@ -87,6 +88,7 @@ fn router(state: AppState) -> Router {
         .route("/auth/logout", get(auth::logout))
         .route("/api/me", get(handlers::me))
         .route("/api/public/slo-status", get(handlers::public_slo_status))
+        .route("/api/public/live-status", get(handlers::public_live_status))
         .merge(api_routes)
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .with_state(state)
@@ -147,6 +149,7 @@ pub async fn run() {
     let nixos_generations_cache = Arc::new(RwLock::new(Vec::<NixosGeneration>::new()));
     let public_ip_cache = Arc::new(RwLock::new(Vec::<PublicIpStatus>::new()));
     let slo_status_cache = Arc::new(RwLock::new(Vec::<SloCheckStatus>::new()));
+    let live_status_cache = Arc::new(RwLock::new(Vec::<LiveCheckStatus>::new()));
 
     start_polling(
         "public_ips",
@@ -198,6 +201,13 @@ pub async fn run() {
 
     start_gatus_slo_polling(config.prometheus.url.clone(), slo_status_cache.clone());
 
+    start_polling(
+        "gatus_live_status",
+        config.prometheus.url.clone(),
+        live_status_cache.clone(),
+        fetch_gatus_live_status,
+    );
+
     let state = AppState {
         config,
         certificate_expiry_cache,
@@ -208,6 +218,7 @@ pub async fn run() {
         nixos_generations_cache,
         public_ip_cache,
         slo_status_cache,
+        live_status_cache,
     };
 
     let app = router(state);

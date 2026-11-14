@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 
 use super::{
-    models::{AlertmanagerAlert, AlertmanagerSilence, CertificateExpiry, DailySloStatus, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, NixosGeneration, PrometheusQueryResponse, PrometheusRangeQueryResponse, PublicIpStatus, SloCheckStatus},
+    models::{AlertmanagerAlert, AlertmanagerSilence, CertificateExpiry, DailySloStatus, FiringAlert, GatusHostStatus, HomelabTask, HostUpStatus, LiveCheckStatus, LiveState, NixosGeneration, PrometheusQueryResponse, PrometheusRangeQueryResponse, PublicIpStatus, SloCheckStatus},
     util::{friendly_name, hostname_from_name},
 };
 
@@ -504,14 +504,7 @@ pub async fn fetch_gatus_slo(
         return Ok(Vec::new());
     }
 
-    let key_regex = escape_promql_string_literal(&format!(
-        "^({})$",
-        GATUS_SLO_CHECK_KEYS
-            .iter()
-            .map(|key| escape_regex_literal(key))
-            .collect::<Vec<_>>()
-            .join("|")
-    ));
+    let key_regex = gatus_slo_key_regex();
 
     let headline_query = format!(r#"homelab_slo_28d{{key=~"{key_regex}"}}"#);
 
@@ -605,6 +598,90 @@ pub async fn fetch_gatus_slo(
     statuses.sort_by(|a, b| a.key.cmp(&b.key));
 
     Ok(statuses)
+}
+
+/// Live state per check: `Down` if the most recent result failed, `Unstable`
+/// if it's currently passing but there was any failure in the last hour
+/// (`homelab_slo_1h` < 1.0), otherwise `Healthy`.
+pub async fn fetch_gatus_live_status(
+    prometheus_url: String,
+    client: reqwest::Client,
+) -> Result<Vec<LiveCheckStatus>, String> {
+    if GATUS_SLO_CHECK_KEYS.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let key_regex = gatus_slo_key_regex();
+
+    let current_query = format!(r#"gatus_results_endpoint_success{{key=~"{key_regex}"}}"#);
+
+    let current_response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", current_query.as_str())])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus for live status: {err}"))?
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus live status response: {err}"))?;
+
+    let hourly_query = format!(r#"homelab_slo_1h{{key=~"{key_regex}"}}"#);
+
+    let hourly_response = client
+        .get(format!("{}/api/v1/query", prometheus_url))
+        .query(&[("query", hourly_query.as_str())])
+        .send()
+        .await
+        .map_err(|err| format!("failed to query Prometheus for hourly SLO: {err}"))?
+        .json::<PrometheusQueryResponse>()
+        .await
+        .map_err(|err| format!("failed to parse Prometheus hourly SLO response: {err}"))?;
+
+    let hourly_ratio_by_key: HashMap<String, f64> = hourly_response
+        .data
+        .result
+        .into_iter()
+        .filter_map(|result| {
+            let key = result.metric.get("key")?.clone();
+            let ratio = result.value.1.parse::<f64>().ok()?;
+            Some((key, ratio))
+        })
+        .collect();
+
+    let mut statuses = current_response
+        .data
+        .result
+        .into_iter()
+        .map(|result| {
+            let key = result.metric.get("key").cloned().unwrap_or_default();
+            let currently_up = result.value.1 == "1";
+
+            let state = if !currently_up {
+                LiveState::Down
+            } else if hourly_ratio_by_key.get(&key).copied().unwrap_or(1.0) < 1.0 {
+                LiveState::Unstable
+            } else {
+                LiveState::Healthy
+            };
+
+            LiveCheckStatus { key, state }
+        })
+        .collect::<Vec<_>>();
+
+    statuses.sort_by(|a, b| a.key.cmp(&b.key));
+
+    Ok(statuses)
+}
+
+fn gatus_slo_key_regex() -> String {
+    escape_promql_string_literal(&format!(
+        "^({})$",
+        GATUS_SLO_CHECK_KEYS
+            .iter()
+            .map(|key| escape_regex_literal(key))
+            .collect::<Vec<_>>()
+            .join("|")
+    ))
 }
 
 fn escape_regex_literal(value: &str) -> String {

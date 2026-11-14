@@ -70,9 +70,24 @@ pub struct DailySloStatus {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct SloCheckStatus {
+    pub key: String,
     pub name: String,
     pub pct_28d: f64,
     pub daily: Vec<DailySloStatus>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LiveState {
+    Healthy,
+    Unstable,
+    Down,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct LiveCheckStatus {
+    pub key: String,
+    pub state: LiveState,
 }
 
 #[derive(Clone, Debug, Deserialize)]

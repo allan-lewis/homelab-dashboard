@@ -1,11 +1,11 @@
 use leptos::prelude::*;
 
 use crate::frontend::components::slo_day_box::SloDayBox;
-use crate::frontend::models::SloCheckStatus;
-use crate::frontend::slo::slo_pill_class;
+use crate::frontend::models::{LiveState, SloCheckStatus};
+use crate::frontend::slo::{live_pill_class, live_pill_label, slo_pill_class};
 
 #[component]
-pub fn SloCheckRow(check: SloCheckStatus) -> impl IntoView {
+pub fn SloCheckRow(check: SloCheckStatus, live_state: Option<LiveState>) -> impl IntoView {
     let pct_28d = check.pct_28d;
 
     view! {
@@ -13,7 +13,16 @@ pub fn SloCheckRow(check: SloCheckStatus) -> impl IntoView {
             <div class="slo-check-header">
                 <span class="slo-check-name">{check.name.clone()}</span>
 
-                <span class=slo_pill_class(pct_28d)>{format!("{:.3}%", pct_28d * 100.0)}</span>
+                <div class="slo-check-pills">
+                    {live_state
+                        .map(|state| {
+                            view! {
+                                <span class=live_pill_class(&state)>{live_pill_label(&state)}</span>
+                            }
+                        })}
+
+                    <span class=slo_pill_class(pct_28d)>{format!("{:.3}%", pct_28d * 100.0)}</span>
+                </div>
             </div>
 
             <div class="slo-day-grid">

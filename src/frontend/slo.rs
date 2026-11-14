@@ -1,6 +1,6 @@
 use gloo_net::http::Request;
 
-use crate::frontend::models::SloCheckStatus;
+use crate::frontend::models::{LiveCheckStatus, LiveState, SloCheckStatus};
 
 pub async fn fetch_slo_status() -> Vec<SloCheckStatus> {
     match Request::get("/api/public/slo-status").send().await {
@@ -9,6 +9,32 @@ pub async fn fetch_slo_status() -> Vec<SloCheckStatus> {
             .await
             .unwrap_or_default(),
         Err(_) => Vec::new(),
+    }
+}
+
+pub async fn fetch_live_status() -> Vec<LiveCheckStatus> {
+    match Request::get("/api/public/live-status").send().await {
+        Ok(response) => response
+            .json::<Vec<LiveCheckStatus>>()
+            .await
+            .unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub fn live_pill_class(state: &LiveState) -> &'static str {
+    match state {
+        LiveState::Healthy => "status-pill up",
+        LiveState::Unstable => "status-pill warning",
+        LiveState::Down => "status-pill down",
+    }
+}
+
+pub fn live_pill_label(state: &LiveState) -> &'static str {
+    match state {
+        LiveState::Healthy => "Healthy",
+        LiveState::Unstable => "Unstable",
+        LiveState::Down => "Down",
     }
 }
 
