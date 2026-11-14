@@ -6,3 +6,4 @@ dist/
 *.log
 .restored_from_backup
 .vscode/
+.claude/settings.local.json
