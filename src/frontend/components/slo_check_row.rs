@@ -13,7 +13,7 @@ pub fn SloCheckRow(check: SloCheckStatus) -> impl IntoView {
             <div class="slo-check-header">
                 <span class="slo-check-name">{check.name.clone()}</span>
 
-                <span class=slo_pill_class(pct_28d)>{format!("{:.4}%", pct_28d * 100.0)}</span>
+                <span class=slo_pill_class(pct_28d)>{format!("{:.3}%", pct_28d * 100.0)}</span>
             </div>
 
             <div class="slo-day-grid">
