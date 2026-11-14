@@ -152,9 +152,13 @@ yet, so the footer's last-updated slot is simply empty on those pages.
 
 ### Header icon assets — three separate SVGs, don't conflate them
 
-- `favicon.svg` — browser tab icon. **Hands off this one** unless
-  explicitly asked; it's intentionally decoupled from the header icons
-  below so they can be iterated on independently.
+- `favicon.svg` — browser tab icon. Kept as a separate file from the
+  header icons (not referenced by `AppHeader`) so each could be iterated
+  on independently during design, but as of the current design it's
+  intentionally a byte-for-byte copy of `header-icon-dark.svg`. **Don't
+  edit it directly** — if the header icon design changes again, ask
+  whether the favicon should be re-synced too rather than assuming either
+  way.
 - `header-icon-dark.svg` / `header-icon-light.svg` — used only inside
   `AppHeader`, swapped via CSS (`.site-header-favicon-dark` /
   `.site-header-favicon-light`, toggled by the same `html[data-theme=...]`
