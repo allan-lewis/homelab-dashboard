@@ -7,7 +7,7 @@ RUN cargo install trunk --locked
 
 COPY Cargo.toml Cargo.lock ./
 COPY index.html ./
-COPY authentik.png ./
+COPY authentik.png favicon.svg header-icon-light.svg header-icon-dark.svg ./
 COPY src ./src
 
 RUN trunk build --release
