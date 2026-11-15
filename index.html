@@ -568,6 +568,12 @@
         text-decoration: none;
       }
 
+      .status-table .slo-check-link {
+        font-size: inherit;
+        line-height: inherit;
+        color: inherit;
+      }
+
       .slo-check-pills .status-pill {
         line-height: 1.4rem;
         padding: 0 0.5rem;
@@ -613,6 +619,15 @@
         border: 1px solid var(--border);
         border-radius: 0.75rem;
         padding: 1rem;
+      }
+
+      /* Reserves height for 3 summary lines (the current max — e.g. Hosts'
+         down/unknown/up) so a panel alone on the grid's last row, with no
+         sibling to stretch against, doesn't end up visibly shorter than
+         panels elsewhere that have more lines. Bump this if any panel ever
+         needs more than 3 lines. */
+      .summary-panel {
+        min-height: 11.85rem;
       }
 
       .summary-list {

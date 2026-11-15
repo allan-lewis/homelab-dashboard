@@ -6,5 +6,6 @@ pub mod login;
 pub mod overview;
 pub mod generations;
 pub mod public_status;
+pub mod slo;
 pub mod tasks;
 pub mod up;

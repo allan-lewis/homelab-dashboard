@@ -32,7 +32,6 @@ pub fn AppShell(current_user: User) -> impl IntoView {
 
                 <CurrentPage
                     current_page=current_page
-                    last_updated=last_updated
                     set_last_updated=set_last_updated
                 />
             </div>

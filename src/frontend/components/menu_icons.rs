@@ -3,6 +3,7 @@ use leptos::prelude::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum MenuIcon {
     Overview,
+    Slo,
     Alerts,
     Hosts,
     Targets,
@@ -21,6 +22,17 @@ impl MenuIcon {
                         <rect x="13" y="3" width="8" height="8" rx="1.5" />
                         <rect x="3" y="13" width="8" height="8" rx="1.5" />
                         <rect x="13" y="13" width="8" height="8" rx="1.5" />
+                    </svg>
+                }
+                    .into_any()
+            }
+            MenuIcon::Slo => {
+                view! {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 2h6" />
+                        <path d="M12 2v3" />
+                        <circle cx="12" cy="13" r="8" />
+                        <path d="M12 13l3-3" />
                     </svg>
                 }
                     .into_any()

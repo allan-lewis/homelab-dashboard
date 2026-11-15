@@ -12,8 +12,9 @@ use crate::frontend::generations::{
 use crate::frontend::models::PrometheusTarget;
 use crate::frontend::up::{fetch_targets, up_status_lines, up_summary_panel};
 use crate::frontend::models::{
-    CertificateExpiry, FiringAlert, HostStatus, NixosGeneration, TaskStatus,
+    CertificateExpiry, FiringAlert, HostStatus, NixosGeneration, SloCheckStatus, TaskStatus,
 };
+use crate::frontend::slo::{fetch_slo_status, slo_info_lines, slo_status_lines, slo_summary_panel};
 use crate::frontend::tasks::{fetch_tasks, task_status_lines, task_summary_panel};
 use crate::frontend::components::summary_panel::SummaryPanelState;
 use crate::frontend::alerts::{
@@ -50,10 +51,7 @@ pub fn current_utc_time_string() -> String {
 }
 
 #[component]
-pub fn OverviewDashboard(
-    last_updated: ReadSignal<Option<String>>,
-    set_last_updated: WriteSignal<Option<String>>,
-) -> impl IntoView {
+pub fn OverviewDashboard(set_last_updated: WriteSignal<Option<String>>) -> impl IntoView {
     let (certificates, set_certificates) = signal(Vec::<CertificateExpiry>::new());
     let (certificates_loaded, set_certificates_loaded) = signal(false);
 
@@ -71,6 +69,21 @@ pub fn OverviewDashboard(
 
     let (targets, set_targets) = signal(Vec::<PrometheusTarget>::new());
     let (targets_loaded, set_targets_loaded) = signal(false);
+
+    let (slo_checks, set_slo_checks) = signal(Vec::<SloCheckStatus>::new());
+    let (slo_loaded, set_slo_loaded) = signal(false);
+
+    spawn_local(async move {
+        loop {
+            let loaded_slo_checks = fetch_slo_status().await;
+
+            set_slo_checks.set(loaded_slo_checks);
+            set_slo_loaded.set(true);
+            set_last_updated.set(Some(current_utc_time_string()));
+
+            TimeoutFuture::new(60_000).await;
+        }
+    });
 
     spawn_local(async move {
         loop {
@@ -149,6 +162,10 @@ pub fn OverviewDashboard(
             {move || {
                 let mut status_lines = Vec::new();
 
+                if slo_loaded.get() {
+                    status_lines.extend(slo_status_lines(&slo_checks.get()));
+                }
+
                 if alerts_loaded.get() {
                     status_lines.extend(alert_status_lines(&alerts.get()));
                 }
@@ -178,7 +195,8 @@ pub fn OverviewDashboard(
                     || !certificates_loaded.get()
                     || !tasks_loaded.get()
                     || !generations_loaded.get()
-                    || !targets_loaded.get();
+                    || !targets_loaded.get()
+                    || !slo_loaded.get();
 
                 view! {
                     <OverviewStatusCard
@@ -189,6 +207,10 @@ pub fn OverviewDashboard(
             }}
             {move || {
                 let mut info_lines = Vec::new();
+
+                if slo_loaded.get() {
+                    info_lines.extend(slo_info_lines(&slo_checks.get()));
+                }
 
                 if alerts_loaded.get() {
                     info_lines.extend(alert_info_lines(&alerts.get()));
@@ -204,13 +226,13 @@ pub fn OverviewDashboard(
 
                 let loading = !alerts_loaded.get()
                     || !hosts_loaded.get()
-                    || !certificates_loaded.get();
+                    || !certificates_loaded.get()
+                    || !slo_loaded.get();
 
                 view! {
                     <OverviewInfoCard
                         loading=loading
                         lines=info_lines
-                        last_updated=last_updated
                     />
                 }
             }}
@@ -218,6 +240,10 @@ pub fn OverviewDashboard(
 
         {move || {
             let panels = vec![
+                SummaryPanelState {
+                    loading: !slo_loaded.get(),
+                    data: slo_summary_panel(&slo_checks.get()),
+                },
                 SummaryPanelState {
                     loading: !alerts_loaded.get(),
                     data: alert_summary_panel(&alerts.get()),

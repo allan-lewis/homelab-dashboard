@@ -23,6 +23,7 @@ pub fn SideMenu(
         }>
             <nav>
                 <MenuItem label="Overview" icon=MenuIcon::Overview target=Page::Overview current_page=current_page set_current_page=set_current_page />
+                <MenuItem label="SLOs" icon=MenuIcon::Slo target=Page::Slo current_page=current_page set_current_page=set_current_page />
                 <MenuItem label="Alerts" icon=MenuIcon::Alerts target=Page::Alerts current_page=current_page set_current_page=set_current_page />
                 <MenuItem label="Hosts" icon=MenuIcon::Hosts target=Page::Hosts current_page=current_page set_current_page=set_current_page />
                 <MenuItem label="Prometheus Targets" icon=MenuIcon::Targets target=Page::Up current_page=current_page set_current_page=set_current_page />

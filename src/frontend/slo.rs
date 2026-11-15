@@ -1,5 +1,6 @@
 use gloo_net::http::Request;
 
+use crate::frontend::components::summary_panel::{SummaryPanelData, SummaryPanelItem};
 use crate::frontend::models::{LiveCheckStatus, LiveState, SloCheckStatus};
 
 pub async fn fetch_slo_status() -> Vec<SloCheckStatus> {
@@ -47,6 +48,58 @@ pub fn slo_pill_class(pct: f64) -> &'static str {
         "status-pill up"
     } else {
         "status-pill down"
+    }
+}
+
+pub fn slo_status_lines(checks: &[SloCheckStatus]) -> Vec<String> {
+    let unmet_count = checks
+        .iter()
+        .filter(|check| check.pct_28d < SLO_TARGET)
+        .count();
+
+    if unmet_count == 0 {
+        Vec::new()
+    } else if unmet_count == 1 {
+        vec!["1 SLO is below 99.9%.".to_string()]
+    } else {
+        vec![format!("{unmet_count} SLOs are below 99.9%.")]
+    }
+}
+
+pub fn slo_info_lines(checks: &[SloCheckStatus]) -> Vec<String> {
+    vec![format!("{} SLOs are being tracked.", checks.len())]
+}
+
+pub fn slo_summary_panel(checks: &[SloCheckStatus]) -> SummaryPanelData {
+    let unmet_count = checks
+        .iter()
+        .filter(|check| check.pct_28d < SLO_TARGET)
+        .count();
+
+    let met_count = checks.len() - unmet_count;
+
+    let mut items = Vec::new();
+
+    if unmet_count > 0 {
+        items.push(SummaryPanelItem {
+            label: "SLOs not meeting target",
+            count: unmet_count,
+            pill_class: "status-pill down",
+        });
+    }
+
+    if met_count > 0 {
+        items.push(SummaryPanelItem {
+            label: "SLOs meeting target",
+            count: met_count,
+            pill_class: "status-pill up",
+        });
+    }
+
+    SummaryPanelData {
+        title: "SLOs",
+        empty_message: "No SLO checks configured yet.",
+        items,
     }
 }
 

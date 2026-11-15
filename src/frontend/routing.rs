@@ -3,6 +3,7 @@ use leptos::wasm_bindgen::JsValue;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
     Overview,
+    Slo,
     Alerts,
     Certificates,
     Hosts,
@@ -24,6 +25,7 @@ impl Page {
     pub fn path(self) -> &'static str {
         match self {
             Page::Overview => "/",
+            Page::Slo => "/slo",
             Page::Alerts => "/alerts",
             Page::Certificates => "/certificates",
             Page::Hosts => "/hosts",
@@ -35,6 +37,7 @@ impl Page {
 
     pub fn from_path(path: &str) -> Self {
         match path {
+            "/slo" => Page::Slo,
             "/alerts" => Page::Alerts,
             "/certificates" => Page::Certificates,
             "/hosts" => Page::Hosts,

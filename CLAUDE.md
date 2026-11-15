@@ -121,6 +121,32 @@ any 28-day window will show `pct: null` (rendered gray) until enough wall
   var(--text) 8%)` shade (the user tried alternating stripes first and
   didn't like it — don't reintroduce striping without asking).
 
+## Authenticated SLOs page
+
+`Page::Slo` (`/slo`, `src/frontend/pages/slo.rs`) surfaces the same
+`slo_public`-tagged checks inside the authenticated shell, as a
+`status-table` (Name / Description / URL / Spot Health pill / SLO pill) —
+no 28-day day-grid, that's the public page's job. It reuses
+`fetch_slo_status`/`fetch_live_status` and the pill helpers straight out
+of `src/frontend/slo.rs` and hits the same *ungated* `/api/public/*`
+routes directly from the authenticated UI — no new backend route, no
+auth check needed, since that data was already meant to be public.
+
+The URL column needed `.status-table .slo-check-link { font-size: inherit;
+line-height: inherit; color: inherit; }` in `index.html` — the shared
+`.slo-check-link` class (used by the public page's subheading-sized link)
+is deliberately smaller/muted there, but inside a `status-table` it
+should just look like every other cell. Scope overrides like this to
+`.status-table .slo-check-link` rather than editing the base class, same
+reasoning as the `.slo-check-pills .status-pill` override above.
+
+Menu item is "SLOs" (plural, for consistency with the other items),
+positioned immediately after Overview — both in `SideMenu` and in the
+`panels`/`status_lines`/`info_lines` ordering on the Overview page (see
+below). The page heading is also "SLOs"; only the summary-panel/table
+*column* header stays singular ("SLO") since that's labeling one pill's
+value, not the page.
+
 ## Shared header/footer across authenticated + public views
 
 The "open item" above is resolved: `AppHeader` (`src/frontend/components/
@@ -138,16 +164,62 @@ now that there's no other UI path to it.
 **`SiteFooter`** takes `theme_mode`/`set_theme_mode` (always) and an
 optional `last_updated: ReadSignal<Option<String>>` (only
 `PublicStatusPage` and the authenticated `AppShell` pass one — see
-below). Layout: theme picker far left, "© {year} · Allan's Home Lab"
-centered (absolute-centered within the footer, independent of how wide
-the two side slots are), last-updated far right.
+below). Layout is just `justify-content: space-between` between two
+children: theme picker on the left, last-updated on the right. There
+used to be a third, absolutely-centered "© {year} · Allan's Home Lab"
+block in the middle — removed on request; don't reintroduce it without
+asking, and don't re-add `position: relative`/`.site-footer-center` to
+`.site-footer` for it either, both were deleted along with it.
 
-**Menu expand/collapse is gone for now, on purpose** — `menu_state.rs`
-(localStorage-backed open/closed flag) was deleted, `SideMenu` no longer
-takes a `menu_open` prop, and `.side-menu` is just a fixed 16rem column.
-The user explicitly deferred reworking this ("we'll rework that once
-everything else is working smoothly") — don't reintroduce a toggle
-without asking what shape they want it in.
+**The side menu now collapses to an icon-only rail**, resolving the
+earlier deferral. `menu_state.rs` (`menu_open_from_storage`/
+`save_menu_open`, localStorage key `menu-open`) was recreated — same
+shape as the version deleted earlier, default-open if unset. `AppShell`
+owns the `(menu_open, set_menu_open)` signal and passes it to `SideMenu`,
+which toggles an `open`/`closed` class on `.side-menu` (CSS `width`
+transition, `16rem` ↔ `3.75rem`); collapsed state hides `.menu-item-label`
+and centers the icon via `.side-menu.closed .menu-item`. A button at the
+bottom of the nav (not in the footer — that's just the theme picker)
+flips it; its icon is a little "panel" glyph (`.menu-toggle-rail`, a
+`<rect>` that's `fill: currentColor` when open, hollow when closed) —
+not a rotating chevron, which read as too plain for the user's taste.
+
+Each `MenuItem` now takes an `icon: MenuIcon` prop
+(`src/frontend/components/menu_icons.rs` — one inline-SVG variant per
+page, same `stroke="currentColor"` convention as the theme icons and the
+toggle glyph above) and renders it **to the right** of the label, not the
+left — deliberate choice, asked for explicitly. `MenuIcon::view(self)`
+returns `AnyView` (each match arm calls `.into_any()`) since the SVGs
+differ structurally per page; add new pages by adding a variant there and
+passing it at the `SideMenu` call site, there's no fallback/default icon.
+`MenuIcon::Slo` went through one revision: a gauge/crosshair (thin arc +
+tick marks, only filling the top half of the 24×24 box) read as visually
+smaller/lighter than the other icons next to it — replaced with a
+stopwatch (full `r="8"` circle + crown + hand), which matches the other
+icons' weight since it's a filled-looking silhouette like the bell/shield
+rather than a sparse line drawing.
+
+**The active-item indicator is a flush-left vertical bar, not a
+background fill.** First attempt kept the old `border-left` directly on
+`.menu-item`, but once `.menu-item` became an inset pill (see below) that
+border inherited the pill's `border-radius` and curved into a
+bracket/brace shape at the corners — looked wrong. Fixed by dropping
+`border-left` entirely and using `.menu-item.active::before`: an
+absolutely-positioned `3px` bar at `left: calc(-0.5rem + 2px)` (relative
+to the pill, positioned `relative`), which lands flush against the
+sidebar's real edge with a small 2px gap, independent of the pill's own
+rounded corners. The active item also lost its resting background fill
+entirely (only the bar + bold text now) — `:hover` still shows the
+normal `--hover-bg` whether or not the item is active; there's no
+separate `--active-hover-bg` treatment anymore, that read as too heavy.
+
+`.menu-item` itself shrank from a full-bleed block to a smaller inset
+pill — `margin: 0 0.5rem`, `width: calc(100% - 1rem)`, tighter padding
+(`0.4rem 0.55rem`), `font-size: 0.9rem`, `border-radius: 0.375rem` down
+from `0.5rem`. The original full-size hover/active block was judged "too
+big/obtrusive" — if asked to touch menu-item sizing again, this is
+already the "more subtle" pass, don't assume it needs shrinking further
+without asking.
 
 **Theme picker moved from the sidebar into `SiteFooter`** (it used to
 live at the bottom of `SideMenu`, authenticated-only). It's icon-based
@@ -159,15 +231,65 @@ already calls `apply_theme_mode(theme_mode_from_storage())` before mount
 regardless of auth state, so system-default + localStorage persistence
 was already correct; this only changed where the *control* lives.
 
-**`last_updated` for the authenticated shell is the Overview page's own
-signal, lifted up** — `AppShell` now owns `(last_updated,
-set_last_updated)` and threads it down through `CurrentPage` →
-`OverviewPage` → `OverviewDashboard` (which used to create this signal
-itself) so the footer and the Overview "Information" panel
-(`OverviewInfoCard`) show the literal same value, not a separately
-fetched copy. Only the `Overview` branch of `CurrentPage` takes the
-signal — other pages don't have an equivalent "last updated" concept
-yet, so the footer's last-updated slot is simply empty on those pages.
+**`last_updated` for the authenticated shell lives only in `AppShell` +
+`SiteFooter` now** — `AppShell` owns `(last_updated, set_last_updated)`;
+only the *setter* gets threaded down through `CurrentPage` →
+`OverviewPage` → `OverviewDashboard` (every fetch loop there calls
+`set_last_updated.set(...)` to keep the footer's timestamp current), the
+getter never leaves `AppShell` since nothing downstream reads it anymore.
+`OverviewInfoCard` used to print its own "Last updated ..." line from
+that same getter — removed on request since it was redundant with the
+footer right next to it; `OverviewInfoCard` no longer takes a
+`last_updated` prop at all. Other pages don't have an equivalent concept
+yet, so the footer's last-updated slot is simply empty there.
+
+## SLO integration on the authenticated Overview page
+
+`src/frontend/slo.rs` grew three more helpers alongside the pill/day-box
+ones, all consumed by `OverviewDashboard` (which fetches
+`fetch_slo_status` on the same 60s cadence as the public/SLOs pages, plus
+a `slo_loaded` flag folded into the page's overall loading checks):
+
+- `slo_status_lines` — conditional, only non-empty when at least one
+  check is below `SLO_TARGET`: `"{n} SLO(s) are below 99.9%."` Feeds the
+  **Status** card, inserted *first*, ahead of alerts/hosts/etc.
+- `slo_info_lines` — unconditional, always `"{n} SLOs are being
+  tracked."` (a plain count, not a met/unmet judgment — that's the Status
+  card's job). Feeds the **Information** card, also inserted first.
+- `slo_summary_panel` — returns a `SummaryPanelData` for the 2×3(+1)
+  summary grid, same shape as `host_summary_panel`/`alert_summary_panel`
+  etc.: up to two lines, "SLOs not meeting target" (red) before "SLOs
+  meeting target" (green), each only present when its count is non-zero.
+  Inserted first in the `panels` vec in `overview_dashboard.rs`, ahead of
+  Alerts.
+
+**History worth knowing before re-litigating**: the first attempt at
+visualizing this was a full-width card below Status/Information, with
+one small bordered chip per check (name + both pills) in a flex-wrap row
+spanning the whole page width. User called it "terrible" — scrapped
+entirely (component deleted, no trace left). The `slo_summary_panel`
+approach above — just another tile in the existing 2×3 summary grid,
+consistent with every other data source — is what replaced it. Don't
+resurrect the full-width-row idea without being asked.
+
+**Summary grid panels now have a `min-height`** (`.summary-panel {
+min-height: 11.85rem; }` in `index.html`). Adding the SLOs panel pushed
+the grid from 6 panels (exactly 2 full rows of 3) to 7, so the last panel
+sits alone in a 3rd row. CSS Grid's `align-items: stretch` only matches
+height *within a row*, so an orphaned single item has no sibling to
+stretch against and renders at its own (shorter) natural height instead
+of matching the rows above — visually it looked short/undersized next to
+everything else. The fix is a `min-height` reserving space for 3 lines
+(the current max any panel has — see `host_summary_panel`'s down/
+unknown/up), computed by measuring a real 1-line and a real 2-line panel
+in the browser and extrapolating, not guessed from font metrics. If a
+panel ever needs a 4th line, bump this value — don't try to fix the
+*other* direction (centering/stretching the lone orphan panel instead);
+that was tried first (`grid-column: 1 / -1` + a centered max-width) and
+looked worse than natural grid flow, because it broke the lone panel's
+column alignment with whatever sits above it in a full row (the user
+specifically wanted the last panel lined up **underneath** the panel in
+the same column, not centered independently).
 
 ### Header icon assets — three separate SVGs, don't conflate them
 
