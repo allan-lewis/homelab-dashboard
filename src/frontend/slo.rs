@@ -106,7 +106,8 @@ pub fn slo_summary_panel(checks: &[SloCheckStatus]) -> SummaryPanelData {
 pub fn slo_day_box_class(pct: Option<f64>) -> &'static str {
     match pct {
         None => "slo-day-box unknown",
-        Some(pct) if pct >= SLO_TARGET => "slo-day-box up",
+        Some(pct) if pct >= 1.0 => "slo-day-box up",
+        Some(pct) if pct >= 0.99 => "slo-day-box warning",
         Some(_) => "slo-day-box down",
     }
 }
